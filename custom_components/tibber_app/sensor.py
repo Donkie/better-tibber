@@ -173,7 +173,8 @@ PULSE_SENSORS: tuple[TibberSensorDescription, ...] = (
         key="accumulated_cost",
         translation_key="accumulated_cost",
         device_class=SensorDeviceClass.MONETARY,
-        state_class=SensorStateClass.TOTAL_INCREASING,
+        # MONETARY disallows total_increasing; use total (it resets at midnight).
+        state_class=SensorStateClass.TOTAL,
         value_fn=lambda v: v.get("accumulatedCost"),
         unit_fn=lambda v: v.get("currency"),
     ),
@@ -566,7 +567,8 @@ class TibberCostTodaySensor(TibberHomeEntity, SensorEntity):
 
     _attr_translation_key = "cost_month"
     _attr_device_class = SensorDeviceClass.MONETARY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    # MONETARY disallows total_increasing; use total (it resets each month).
+    _attr_state_class = SensorStateClass.TOTAL
 
     def __init__(self, coordinator: TibberDataUpdateCoordinator, home_id: str) -> None:
         super().__init__(coordinator, home_id, "cost_month")
