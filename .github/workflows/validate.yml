@@ -46,6 +46,6 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install dependencies
-        run: pip install pytest-homeassistant-custom-component
+        run: pip install pytest-homeassistant-custom-component aioresponses
       - name: Run tests
         run: python -m pytest tests/ -q
