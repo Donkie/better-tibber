@@ -1,0 +1,105 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Tibber app login",
+        "description": "Log in with your Tibber app email and password. These credentials are stored locally and used to obtain an access token.",
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Tibber app re-authentication",
+        "description": "The stored credentials for {email} stopped working. Enter the password again.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid email or password.",
+      "cannot_connect": "Failed to connect to Tibber."
+    },
+    "abort": {
+      "already_configured": "This Tibber account is already configured.",
+      "reauth_successful": "Re-authentication was successful.",
+      "wrong_account": "The credentials are for a different Tibber account."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_level": { "name": "Battery level" },
+      "range": { "name": "Range" },
+      "charging_status": { "name": "Charging status" },
+      "smart_charging_status": { "name": "Smart charging status" },
+      "session_energy": { "name": "Session energy" },
+      "target_soc": { "name": "Target charge" },
+      "target_departure": { "name": "Target departure" },
+      "last_seen": { "name": "Last seen" },
+      "active_vehicle": { "name": "Active vehicle" },
+      "power": { "name": "Power" },
+      "power_production": { "name": "Power production" },
+      "accumulated_consumption": { "name": "Consumption today" },
+      "accumulated_production": { "name": "Production today" },
+      "accumulated_cost": { "name": "Cost today" },
+      "current_l1": { "name": "Current L1" },
+      "current_l2": { "name": "Current L2" },
+      "current_l3": { "name": "Current L3" },
+      "voltage_l1": { "name": "Voltage L1" },
+      "voltage_l2": { "name": "Voltage L2" },
+      "voltage_l3": { "name": "Voltage L3" },
+      "signal_strength": { "name": "Signal strength" },
+      "production_now": { "name": "Production" },
+      "production_today": { "name": "Production today" },
+      "operation_mode": { "name": "Operation mode" },
+      "session_cost": { "name": "Session cost" },
+      "state_of_charge": { "name": "State of charge" },
+      "battery_status": { "name": "Status" },
+      "power_from_solar": { "name": "Power from solar" },
+      "power_from_grid": { "name": "Power from grid" },
+      "power_to_home": { "name": "Power to home" },
+      "power_to_grid": { "name": "Power to grid" },
+      "electricity_price": { "name": "Electricity price" },
+      "consumption_month": { "name": "Consumption this month" },
+      "cost_month": { "name": "Cost this month" },
+      "grid_rewards_month": { "name": "Grid Rewards this month" }
+    },
+    "time": {
+      "departure_monday": { "name": "Departure Monday" },
+      "departure_tuesday": { "name": "Departure Tuesday" },
+      "departure_wednesday": { "name": "Departure Wednesday" },
+      "departure_thursday": { "name": "Departure Thursday" },
+      "departure_friday": { "name": "Departure Friday" },
+      "departure_saturday": { "name": "Departure Saturday" },
+      "departure_sunday": { "name": "Departure Sunday" }
+    },
+    "binary_sensor": {
+      "online": { "name": "Online" },
+      "charging": { "name": "Charging" },
+      "grid_rewards_enabled": { "name": "Grid Rewards enabled" },
+      "peak_exceeded": { "name": "Peak exceeded" }
+    },
+    "number": {
+      "manual_soc": { "name": "Manual state of charge" },
+      "max_current": { "name": "Max charge current" },
+      "main_fuse": { "name": "Main fuse size" },
+      "offline_fallback_current": { "name": "Offline fallback current" },
+      "peak_limit": { "name": "Peak consumption limit" }
+    },
+    "select": {
+      "preferred_vehicle": { "name": "Preferred vehicle" },
+      "battery_mode": { "name": "Operation mode" }
+    },
+    "switch": {
+      "cable_lock": { "name": "Permanent cable lock" },
+      "load_balancing": { "name": "Fuse load balancing" },
+      "smart_charging": { "name": "Smart charging" },
+      "away_mode": { "name": "Away mode" },
+      "peak_control": { "name": "Peak control" }
+    },
+    "button": {
+      "refresh": { "name": "Refresh" }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+# Lint config aligned with Home Assistant core conventions.
+target-version = "py312"
+line-length = 88
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "PL"]
+ignore = [
+  "PLR0911",  # too many return statements
+  "PLR0912",  # too many branches (retry/backoff logic is inherently branchy)
+  "PLR0913",  # too many arguments (entity constructors take coordinator+device+desc)
+  "PLR0915",  # too many statements
+  "PLR2004",  # magic values are fine in small mappings
+]
+
+[lint.per-file-ignores]
+"custom_components/tibber_app/queries.py" = ["E501"]  # GraphQL strings are long

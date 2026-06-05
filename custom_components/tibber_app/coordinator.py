@@ -1,0 +1,430 @@
+"""Data update coordinator for the Tibber app integration.
+
+Discovers homes + devices from ``me.home.gizmos`` once, then on each refresh issues
+one combined GraphQL query per home (per-device sub-selections are aliased). Live
+Pulse data arrives separately over WebSocket and is merged into ``data`` so the
+meter sensors update in near real time.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+from datetime import timedelta as _timedelta
+from typing import Any
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
+
+from . import queries
+from .api import TibberApiError, TibberAppClient, TibberAuthError
+from .const import (
+    DOMAIN,
+    GIZMO_BATTERY,
+    GIZMO_ELECTRIC_VEHICLE,
+    GIZMO_EV_CHARGER,
+    GIZMO_INVERTER,
+    GIZMO_REAL_TIME_METER,
+    GIZMO_THERMOSTAT,
+    SCAN_INTERVAL,
+)
+
+_LOGGER = logging.getLogger(__name__)
+
+# Gizmo types we turn into HA devices; other gizmos (PRICE, WEATHER, …) are
+# home-screen widgets, not physical devices.
+_DEVICE_GIZMO_TYPES = frozenset(
+    {
+        GIZMO_ELECTRIC_VEHICLE,
+        GIZMO_EV_CHARGER,
+        GIZMO_REAL_TIME_METER,
+        GIZMO_BATTERY,
+        GIZMO_INVERTER,
+        GIZMO_THERMOSTAT,
+    }
+)
+
+# Home-scoped devices: (gizmo type, alias prefix, GraphQL field, field selection).
+_HOME_DEVICE_BLOCKS = (
+    (GIZMO_EV_CHARGER, "charger", "vehicleCharger", queries.CHARGER_FIELDS),
+    (GIZMO_BATTERY, "battery", "battery", queries.BATTERY_FIELDS),
+    (GIZMO_INVERTER, "inverter", "inverter", queries.INVERTER_FIELDS),
+    (GIZMO_THERMOSTAT, "thermostat", "thermostat", queries.THERMOSTAT_FIELDS),
+)
+
+
+@dataclass
+class TibberDevice:
+    """A device discovered from a home's gizmo list."""
+
+    id: str
+    name: str
+    type: str
+    home_id: str
+
+
+@dataclass
+class TibberData:
+    """Parsed snapshot returned by the coordinator each refresh."""
+
+    homes: dict[str, dict[str, Any]] = field(default_factory=dict)
+    vehicles: dict[str, dict[str, Any]] = field(default_factory=dict)
+    chargers: dict[str, dict[str, Any]] = field(default_factory=dict)
+    batteries: dict[str, dict[str, Any]] = field(default_factory=dict)
+    inverters: dict[str, dict[str, Any]] = field(default_factory=dict)
+    thermostats: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # Inverter production summary, keyed by inverter id (separate tolerant fetch).
+    inverter_production: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # Live Pulse measurements, keyed by pulse device id; filled by the WS listener.
+    live: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # Live battery state, keyed by battery device id; filled by the WS listener.
+    battery_live: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+
+def _alias(prefix: str, device_id: str) -> str:
+    """Return a GraphQL-safe alias for a UUID device id."""
+    return f"{prefix}_{device_id.replace('-', '_')}"
+
+
+def _device_block(prefix: str, gql_field: str, device_id: str, fields: str) -> str:
+    """Build an aliased per-device sub-selection for the combined home query."""
+    return f'{_alias(prefix, device_id)}: {gql_field}(id: "{device_id}") {{{fields}}}'
+
+
+class TibberDataUpdateCoordinator(DataUpdateCoordinator[TibberData]):
+    """Polls the app API and holds the merged device state."""
+
+    def __init__(
+        self, hass: HomeAssistant, entry: ConfigEntry, client: TibberAppClient
+    ) -> None:
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=DOMAIN,
+            update_interval=SCAN_INTERVAL,
+            config_entry=entry,
+        )
+        self.client = client
+        self.devices: list[TibberDevice] = []
+        self.home_titles: dict[str, str] = {}
+        # Homes that actually have Grid Rewards data (set at discovery).
+        self.grid_reward_homes: set[str] = set()
+        # Last fetched grid rewards per home (kept across polls; the period query
+        # is fetched separately because it errors for homes without data).
+        self._grid_rewards: dict[str, dict[str, Any]] = {}
+        # Last fetched inverter production summary, keyed by inverter id.
+        self._inverter_production: dict[str, dict[str, Any]] = {}
+        # Preserve live WS data across polls.
+        self._live: dict[str, dict[str, Any]] = {}
+        self._battery_live: dict[str, dict[str, Any]] = {}
+
+    # -- discovery ----------------------------------------------------------
+    async def async_discover(self) -> None:
+        """Enumerate homes and their devices. Called once before first refresh."""
+        try:
+            data = await self.client.gql(queries.DISCOVERY)
+        except TibberAuthError as err:
+            raise ConfigEntryAuthFailed(f"Authentication failed: {err}") from err
+        except TibberApiError as err:
+            raise ConfigEntryNotReady(f"Discovery failed: {err}") from err
+
+        devices: dict[str, TibberDevice] = {}
+        for home in data.get("me", {}).get("homes") or []:
+            home_id = home["id"]
+            self.home_titles[home_id] = home.get("title") or "Home"
+            for gizmo in home.get("gizmos") or []:
+                # Flatten gizmo groups into their member gizmos.
+                members = gizmo.get("gizmos") or [gizmo]
+                for member in members:
+                    gid, gtype = member.get("id"), member.get("type")
+                    if not gid or not gtype or gtype not in _DEVICE_GIZMO_TYPES:
+                        continue
+                    # Account-level devices (e.g. vehicles) show up under every
+                    # home; keep the first sighting so we create one HA device.
+                    if gid in devices:
+                        continue
+                    devices[gid] = TibberDevice(
+                        id=gid,
+                        name=member.get("title") or gtype.title(),
+                        type=gtype,
+                        home_id=home_id,
+                    )
+        self.devices = list(devices.values())
+        await self._discover_grid_rewards()
+        _LOGGER.debug(
+            "Discovered %d devices across %d homes",
+            len(devices),
+            len(self.home_titles),
+        )
+
+    async def _discover_grid_rewards(self) -> None:
+        """Flag homes that have a non-empty Grid Rewards history."""
+        for home_id in self.home_titles:
+            try:
+                res = await self.client.gql(
+                    queries.GRID_REWARDS_HISTORY, {"homeId": home_id}
+                )
+            except TibberApiError:
+                continue
+            history = ((res.get("me") or {}).get("home") or {}).get(
+                "gridRewardsHistory"
+            ) or {}
+            # A home with no rewards reports valuesFrom == valuesTo (empty range).
+            if history.get("valuesFrom") and history.get("valuesFrom") != history.get(
+                "valuesTo"
+            ):
+                self.grid_reward_homes.add(home_id)
+
+    def devices_of_type(self, gizmo_type: str) -> list[TibberDevice]:
+        """Return discovered devices of a given gizmo type."""
+        return [d for d in self.devices if d.type == gizmo_type]
+
+    async def _fetch_grid_rewards(self) -> None:
+        """Fetch current-month rewards for eligible homes, tolerating errors."""
+        if not self.grid_reward_homes:
+            return
+        now = dt_util.now()
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        next_month = (month_start + _timedelta(days=32)).replace(day=1)
+        for home_id in self.grid_reward_homes:
+            try:
+                res = await self.client.gql(
+                    queries.GRID_REWARDS_PERIOD,
+                    {
+                        "homeId": home_id,
+                        "from": month_start.isoformat(),
+                        "to": next_month.isoformat(),
+                        "resolution": "monthly",
+                    },
+                )
+            except TibberApiError as err:
+                _LOGGER.debug("Grid rewards fetch failed for %s: %s", home_id, err)
+                continue
+            period = ((res.get("me") or {}).get("home") or {}).get(
+                "gridRewardsHistoryPeriod"
+            )
+            if period:
+                self._grid_rewards[home_id] = period
+
+    # -- polling ------------------------------------------------------------
+    async def _async_update_data(self) -> TibberData:
+        query = self._build_query()
+        try:
+            raw = await self.client.gql(query)
+        except TibberAuthError as err:
+            raise ConfigEntryAuthFailed(f"Authentication failed: {err}") from err
+        except TibberApiError as err:
+            raise UpdateFailed(f"Update failed: {err}") from err
+        await self._fetch_grid_rewards()
+        await self._fetch_inverter_production()
+        return self._parse(raw)
+
+    def _build_query(self) -> str:
+        """Assemble one combined query: account vehicles + per-home device blocks."""
+        me_parts: list[str] = ["id"]
+
+        # Vehicles live at me.vehicle(id:), not under a home.
+        for dev in self.devices_of_type(GIZMO_ELECTRIC_VEHICLE):
+            me_parts.append(
+                f'{_alias("vehicle", dev.id)}: vehicle(id: "{dev.id}") {{'
+                f"{queries.VEHICLE_FIELDS}}}"
+            )
+
+        for home_id in self.home_titles:
+            home_parts = [
+                queries.PRICE_FIELDS,
+                queries.CONSUMPTION_GIZMO_FIELDS,
+                queries.PEAK_CONTROL_FIELDS,
+                queries.WEATHER_FIELDS,
+            ]
+            for gtype, prefix, gql_field, fields in _HOME_DEVICE_BLOCKS:
+                for dev in self.devices_of_type(gtype):
+                    if dev.home_id == home_id:
+                        home_parts.append(
+                            _device_block(prefix, gql_field, dev.id, fields)
+                        )
+            me_parts.append(
+                f'{_alias("home", home_id)}: home(id: "{home_id}") {{'
+                + "\n".join(home_parts)
+                + "}"
+            )
+
+        return "{ me { " + "\n".join(me_parts) + " } }"
+
+    def _parse(self, raw: dict[str, Any]) -> TibberData:
+        me = raw.get("me") or {}
+        data = TibberData(
+            live=dict(self._live),
+            battery_live=dict(self._battery_live),
+            inverter_production=dict(self._inverter_production),
+        )
+
+        for dev in self.devices_of_type(GIZMO_ELECTRIC_VEHICLE):
+            node = me.get(_alias("vehicle", dev.id))
+            if node:
+                data.vehicles[dev.id] = node
+
+        for home_id in self.home_titles:
+            home_node = me.get(_alias("home", home_id))
+            if not home_node:
+                continue
+            data.homes[home_id] = {
+                "title": self.home_titles[home_id],
+                "price": home_node.get("subscription", {}).get("priceRating"),
+                "hasSignedEnergyDeal": home_node.get("hasSignedEnergyDeal"),
+                "consumption": home_node.get("consumptionGizmoData"),
+                "peakControl": home_node.get("peakControlData"),
+                "gridRewards": self._grid_rewards.get(home_id),
+                "weather": home_node.get("weather"),
+            }
+            for dev in self.devices_of_type(GIZMO_EV_CHARGER):
+                node = home_node.get(_alias("charger", dev.id))
+                if node:
+                    data.chargers[dev.id] = node
+            for dev in self.devices_of_type(GIZMO_BATTERY):
+                node = home_node.get(_alias("battery", dev.id))
+                if node:
+                    data.batteries[dev.id] = node
+            for dev in self.devices_of_type(GIZMO_INVERTER):
+                node = home_node.get(_alias("inverter", dev.id))
+                if node:
+                    data.inverters[dev.id] = node
+            for dev in self.devices_of_type(GIZMO_THERMOSTAT):
+                node = home_node.get(_alias("thermostat", dev.id))
+                if node:
+                    data.thermostats[dev.id] = node
+
+        return data
+
+    # -- live (WebSocket) ---------------------------------------------------
+    def update_live(self, pulse_id: str, measurement: dict[str, Any]) -> None:
+        """Merge a live Pulse measurement and notify entities.
+
+        Uses ``async_update_listeners`` rather than ``async_set_updated_data`` on
+        purpose: the latter reschedules the poll timer, and at ~6 frames/min the
+        regular poll would never fire. This just tells entities to re-read state.
+        """
+        self._live[pulse_id] = measurement
+        if self.data is None:
+            # First poll hasn't completed yet; value is kept and applied later.
+            return
+        self.data.live[pulse_id] = measurement
+        self.async_update_listeners()
+
+    def update_battery_live(self, battery_id: str, state: dict[str, Any]) -> None:
+        """Merge a live battery state and notify entities (see ``update_live``)."""
+        self._battery_live[battery_id] = state
+        if self.data is None:
+            return
+        self.data.battery_live[battery_id] = state
+        self.async_update_listeners()
+
+    # -- inverter production (separate fetch) --------------------------------
+    async def _fetch_inverter_production(self) -> None:
+        """Fetch today's production summary per inverter, tolerating errors."""
+        inverters = self.devices_of_type(GIZMO_INVERTER)
+        if not inverters:
+            return
+        now = dt_util.now()
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        for dev in inverters:
+            try:
+                res = await self.client.gql(
+                    queries.INVERTER_PRODUCTION,
+                    {
+                        "homeId": dev.home_id,
+                        "inverterId": dev.id,
+                        "from": day_start.isoformat(),
+                        "to": now.isoformat(),
+                        "resolution": "HOURLY",
+                    },
+                )
+            except TibberApiError as err:
+                _LOGGER.debug(
+                    "Inverter production fetch failed for %s: %s", dev.id, err
+                )
+                continue
+            home = (res.get("me") or {}).get("home") or {}
+            prod = home.get("inverterProduction")
+            if prod:
+                self._inverter_production[dev.id] = prod
+
+    # -- mutation helpers ---------------------------------------------------
+    async def async_set_vehicle_setting(
+        self, vehicle_id: str, home_id: str, key: str, value: Any
+    ) -> None:
+        await self.client.gql(
+            queries.SET_VEHICLE_SETTINGS,
+            {
+                "vehicleId": vehicle_id,
+                "homeId": home_id,
+                "settings": [{"key": key, "value": value}],
+            },
+        )
+        await self.async_request_refresh()
+
+    async def async_set_charger_setting(
+        self, charger_id: str, home_id: str, key: str, value: Any
+    ) -> None:
+        await self.client.gql(
+            queries.SET_CHARGER_SETTINGS,
+            {
+                "chargerId": charger_id,
+                "homeId": home_id,
+                "settings": [{"key": key, "value": value}],
+            },
+        )
+        await self.async_request_refresh()
+
+    async def async_set_away_mode(
+        self, home_id: str, enabled: bool, from_iso: str, to_iso: str
+    ) -> None:
+        await self.client.gql(
+            queries.SET_AWAY_MODE,
+            {"homeId": home_id, "enabled": enabled, "from": from_iso, "to": to_iso},
+        )
+        await self.async_request_refresh()
+
+    async def async_set_peak_control(
+        self, home_id: str, is_active: bool, limit: float
+    ) -> None:
+        await self.client.gql(
+            queries.SET_PEAK_CONTROL,
+            {"homeId": home_id, "isActive": is_active, "consumptionLimit": limit},
+        )
+        await self.async_request_refresh()
+
+    async def async_set_battery_mode(
+        self, home_id: str, device_id: str, mode: str
+    ) -> None:
+        await self.client.gql(
+            queries.SET_BATTERY_OPERATION_MODE,
+            {"homeId": home_id, "deviceId": device_id, "operationMode": mode},
+        )
+        await self.async_request_refresh()
+
+    async def async_set_thermostat_state(
+        self,
+        home_id: str,
+        device_id: str,
+        *,
+        mode: str | None = None,
+        comfort_temperature: float | None = None,
+        fan_level: str | None = None,
+        on_off: str | None = None,
+    ) -> None:
+        await self.client.gql(
+            queries.SET_THERMOSTAT_STATE,
+            {
+                "homeId": home_id,
+                "deviceId": device_id,
+                "mode": mode,
+                "comfortTemperature": comfort_temperature,
+                "fanLevel": fan_level,
+                "onOff": on_off,
+            },
+        )
+        await self.async_request_refresh()
