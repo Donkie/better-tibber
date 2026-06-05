@@ -1,0 +1,16 @@
+{
+  "me": {
+    "id": "account-id-1",
+    "homes": [
+      {
+        "id": "home-1",
+        "title": "My Home",
+        "gizmos": [
+          {"id": "ev-1", "type": "ELECTRIC_VEHICLE", "title": "My Car", "gizmos": null},
+          {"id": "charger-1", "type": "EV_CHARGER", "title": "My Charger", "gizmos": null},
+          {"id": "pulse-1", "type": "REAL_TIME_METER", "title": "Pulse", "gizmos": null}
+        ]
+      }
+    ]
+  }
+}

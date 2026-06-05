@@ -1,0 +1,82 @@
+{
+  "me": {
+    "id": "account-id-1",
+    "vehicle_ev_1": {
+      "id": "ev-1",
+      "name": "My Car",
+      "isAlive": true,
+      "chargingStatus": "IDLE",
+      "smartChargingStatus": "SMART_CHARGING",
+      "battery": {
+        "level": 75,
+        "estimatedRange": 200,
+        "canReadLevel": true
+      },
+      "charging": {
+        "summary": {
+          "energyConsumed": 12.5,
+          "total": 45.0
+        },
+        "targetedStateOfCharge": 80,
+        "targetedDepartureTime": null
+      },
+      "userSettings": [
+        {"key": "offline.vehicle.smartCharging.isEnabled", "value": "true"},
+        {"key": "offline.vehicle.batteryLevel", "value": "75"},
+        {"key": "offline.vehicle.departureTimes.monday", "value": "07:00"}
+      ]
+    },
+    "home_home_1": {
+      "hasSignedEnergyDeal": true,
+      "subscription": {
+        "priceRating": {
+          "isAvailable": true,
+          "thresholdPercentages": {"high": 1.5, "low": 0.7, "highBreakpoint": null},
+          "hourly": {
+            "currency": "NOK",
+            "entries": [
+              {
+                "time": "2024-01-01T00:00:00+00:00",
+                "energy": 0.85,
+                "total": 1.23
+              }
+            ]
+          }
+        }
+      },
+      "consumptionGizmoData": {
+        "from": "2026-06-01T00:00:00+00:00",
+        "consumption": 150.0,
+        "cost": 185.0,
+        "currency": "NOK"
+      },
+      "peakControlData": {
+        "isActive": false,
+        "hasRealTimeDevice": true,
+        "consumptionLimit": 5.0,
+        "lowerBound": 2.0,
+        "upperBound": 10.0,
+        "incrementSize": 0.5,
+        "recommendedValue": 5.0
+      },
+      "weather": null,
+      "charger_charger_1": {
+        "id": "charger-1",
+        "name": "My Charger",
+        "isAlive": true,
+        "chargingStatus": "READY",
+        "lastSeen": "2026-06-05T10:00:00Z",
+        "vehicles": [
+          {"id": "ev-1", "name": "My Car", "isPreferred": true}
+        ],
+        "userSettings": [
+          {"key": "isCableLockPermanent", "value": "false", "valueType": "boolean"},
+          {"key": "fuseLoadBalancing", "value": "true", "valueType": "boolean"},
+          {"key": "maxCurrentCharger", "value": "16", "valueType": "integer"},
+          {"key": "mainFuseSize", "value": "25", "valueType": "integer"},
+          {"key": "offlineFallbackCurrent", "value": "6", "valueType": "integer"}
+        ]
+      }
+    }
+  }
+}
