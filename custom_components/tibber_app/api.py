@@ -38,6 +38,17 @@ def _is_auth_error(errors: list[dict[str, Any]]) -> bool:
     return False
 
 
+def _is_transient_error(errors: list[dict[str, Any]]) -> bool:
+    """True if a GraphQL error list signals a transient upstream failure.
+
+    The backend trips its own circuit breaker under load and returns this as a
+    GraphQL error (HTTP 200) rather than a 5xx, so it needs the same backoff.
+    """
+    return any(
+        "breaker is open" in (err.get("message") or "").lower() for err in errors
+    )
+
+
 class TibberAuthError(Exception):
     """Raised when login fails or the token is rejected."""
 
@@ -165,6 +176,9 @@ class TibberAppClient:
                         token = await self.login()
                         continue
                     raise TibberAuthError("Token rejected after re-login")
+                if _is_transient_error(errors) and attempt < retries - 1:
+                    await asyncio.sleep(2 * (attempt + 1))
+                    continue
                 msg = "; ".join(e.get("message", "?") for e in errors)
                 raise TibberApiError(f"GraphQL error: {msg}")
             return payload.get("data", {})

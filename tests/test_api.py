@@ -19,6 +19,7 @@ from custom_components.tibber_app.api import (
     TibberAppClient,
     TibberAuthError,
     _is_auth_error,
+    _is_transient_error,
 )
 from custom_components.tibber_app.const import GQL_URL, LOGIN_URL
 
@@ -68,6 +69,20 @@ class TestIsAuthError:
 
     def test_missing_extensions_does_not_raise(self):
         assert not _is_auth_error([{"message": "ok"}])
+
+
+class TestIsTransientError:
+    def test_breaker_is_open(self):
+        assert _is_transient_error([{"message": "Breaker is open"}])
+
+    def test_case_insensitive(self):
+        assert _is_transient_error([{"message": "BREAKER IS OPEN"}])
+
+    def test_unrelated_error_returns_false(self):
+        assert not _is_transient_error([{"message": "Field not found"}])
+
+    def test_empty_list_returns_false(self):
+        assert not _is_transient_error([])
 
 
 # ---------------------------------------------------------------------------
@@ -308,6 +323,39 @@ class TestGqlGraphQLErrors:
                 result = await client.gql("{ ok }")
 
         assert result == {"ok": True}
+
+    async def test_breaker_open_retries_then_succeeds(self):
+        """A 'Breaker is open' GraphQL error is retried with backoff."""
+        async with aiohttp.ClientSession() as session:
+            client = TibberAppClient(session, "u@test.com", "pass", token="tok")
+            with (
+                patch(_SLEEP, new=AsyncMock()),
+                aioresponses() as m,
+            ):
+                m.post(
+                    GQL_URL,
+                    payload={"errors": [{"message": "Breaker is open"}]},
+                )
+                m.post(GQL_URL, payload={"data": {"ok": True}})
+                result = await client.gql("{ ok }")
+
+        assert result == {"ok": True}
+
+    async def test_breaker_open_retries_then_raises(self):
+        """'Breaker is open' is retried up to (retries - 1) times, then raises."""
+        async with aiohttp.ClientSession() as session:
+            client = TibberAppClient(session, "u@test.com", "pass", token="tok")
+            with (
+                patch(_SLEEP, new=AsyncMock()),
+                aioresponses() as m,
+            ):
+                for _ in range(4):
+                    m.post(
+                        GQL_URL,
+                        payload={"errors": [{"message": "Breaker is open"}]},
+                    )
+                with pytest.raises(TibberApiError, match="Breaker is open"):
+                    await client.gql("{ ok }")
 
     async def test_non_auth_graphql_error_raises_api_error(self):
         async with aiohttp.ClientSession() as session:

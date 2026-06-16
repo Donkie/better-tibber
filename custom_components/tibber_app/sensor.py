@@ -88,7 +88,9 @@ VEHICLE_SENSORS: tuple[TibberSensorDescription, ...] = (
         translation_key="session_energy",
         device_class=SensorDeviceClass.ENERGY,
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-        state_class=SensorStateClass.TOTAL_INCREASING,
+        # The app's live estimate can tick down slightly mid-session (not just
+        # reset to 0 at session start), so it isn't strictly increasing.
+        state_class=SensorStateClass.TOTAL,
         value_fn=lambda v: ((v.get("charging") or {}).get("summary") or {}).get(
             "energyConsumed"
         ),
