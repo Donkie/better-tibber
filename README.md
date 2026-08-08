@@ -43,7 +43,7 @@ version in HACS to pin or roll back.)
 ### Manual
 
 Download `tibber_app.zip` from the
-[latest release](https://github.com/Donkie/hass-tibber/releases/latest) and unpack
+[latest release](https://github.com/Donkie/better-tibber/releases/latest) and unpack
 it into `config/custom_components/tibber_app/`, or copy
 `custom_components/tibber_app/` from a checkout. Restart Home Assistant afterwards.
 

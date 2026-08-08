@@ -3,10 +3,10 @@
   "name": "Better Tibber",
   "codeowners": ["@Donkie"],
   "config_flow": true,
-  "documentation": "https://github.com/Donkie/hass-tibber",
+  "documentation": "https://github.com/Donkie/better-tibber",
   "integration_type": "hub",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/Donkie/hass-tibber/issues",
+  "issue_tracker": "https://github.com/Donkie/better-tibber/issues",
   "requirements": [],
   "version": "0.1.0"
 }
