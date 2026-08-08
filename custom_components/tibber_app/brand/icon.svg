@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Source artwork for icon.png (256px) and icon@2x.png (512px).
+       Original design, not derived from Tibber's own logo. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.45" y2="1">
+      <stop offset="0" stop-color="#34DBA0"/>
+      <stop offset="0.55" stop-color="#17BE85"/>
+      <stop offset="1" stop-color="#0B8C64"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx="0.25" cy="0.12" r="0.9">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.28"/>
+      <stop offset="0.6" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" ry="112" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="112" ry="112" fill="url(#sheen)"/>
+
+  <path d="M292 92 L152 288 L252 288 L220 420 L360 224 L260 224 Z"
+        fill="#FFFFFF" stroke="#FFFFFF" stroke-width="18"
+        stroke-linejoin="round" stroke-linecap="round"/>
+
+  <rect x="3" y="3" width="506" height="506" rx="109" ry="109"
+        fill="none" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="6"/>
+</svg>
