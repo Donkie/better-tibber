@@ -46,6 +46,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install dependencies
-        run: pip install pytest-homeassistant-custom-component aioresponses
+        # Pinned: unpinned installs pulled whatever pytest-homeassistant-custom-component
+        # release was newest at run time, and older ones lack the pytest-asyncio
+        # thread-cleanup exclusion for aiodns' shutdown thread, spuriously failing
+        # TestLogin::test_success_stores_and_returns_token in CI (not reproducible
+        # locally where a newer version happened to be installed).
+        run: pip install pytest-homeassistant-custom-component==0.13.355 aioresponses==0.7.8
       - name: Run tests
         run: python -m pytest tests/ -q

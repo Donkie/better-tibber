@@ -9,6 +9,7 @@ ignore = [
   "PLR0912",  # too many branches (retry/backoff logic is inherently branchy)
   "PLR0913",  # too many arguments (entity constructors take coordinator+device+desc)
   "PLR0915",  # too many statements
+  "PLR0917",  # too many positional arguments (same entity-constructor pattern)
   "PLR2004",  # magic values are fine in small mappings
 ]
 
