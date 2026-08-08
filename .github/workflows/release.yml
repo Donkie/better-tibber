@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # HACS installs the files from the tagged tree, so manifest.json is what
+      # Home Assistant ends up reporting as the installed version. Refuse to
+      # publish a release whose tag says something else.
+      - name: Check manifest version matches tag
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          manifest=$(python -c "import json; print(json.load(open('custom_components/tibber_app/manifest.json'))['version'])")
+          echo "tag=$tag manifest=$manifest"
+          if [ "$tag" != "$manifest" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match manifest version ${manifest}. Bump manifest.json first."
+            exit 1
+          fi
+
+      - name: Build zip for manual installs
+        run: |
+          cd custom_components/tibber_app
+          zip -r "${GITHUB_WORKSPACE}/tibber_app.zip" . -x '*__pycache__*'
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: tibber_app.zip

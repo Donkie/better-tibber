@@ -1,12 +1,13 @@
-# Tibber app — Home Assistant integration
+# Better Tibber — Home Assistant integration
 
 A Home Assistant custom component that connects to the **Tibber mobile app** GraphQL
 API (`app.tibber.com`) and exposes it as native entities: EV and charger control, a
 live real-time meter, electricity prices, Grid Rewards, weather, and — where present
-— home battery, solar inverter and thermostats.
+— home battery, solar inverter and thermostats. Everything the app shows you, in
+Home Assistant.
 
-> ⚠️ **Unofficial.** Not endorsed by Tibber; the API may change without notice. Use
-> your own account and respect the rate limit.
+> Not affiliated with or endorsed by Tibber. The app API is undocumented and may
+> change without notice.
 
 ## Features
 
@@ -31,16 +32,42 @@ entity list and notes.
 ### HACS (recommended)
 
 1. HACS → ⋮ → **Custom repositories** → add this repository, category **Integration**.
-2. Install **Tibber (unofficial app API)**, then restart Home Assistant.
-3. **Settings → Devices & Services → Add Integration → “Tibber (unofficial app API)”**
+2. Install **Better Tibber**, then restart Home Assistant.
+3. **Settings → Devices & Services → Add Integration → “Better Tibber”**
    and sign in with your Tibber app email + password.
+
+HACS tracks the repository's **GitHub releases**: it offers the newest tag, and
+shows an update whenever a newer one is published. (Pick "Redownload" → a specific
+version in HACS to pin or roll back.)
 
 ### Manual
 
-Copy `custom_components/tibber_app/` into your Home Assistant
-`config/custom_components/` directory and restart.
+Download `tibber_app.zip` from the
+[latest release](https://github.com/Donkie/hass-tibber/releases/latest) and unpack
+it into `config/custom_components/tibber_app/`, or copy
+`custom_components/tibber_app/` from a checkout. Restart Home Assistant afterwards.
 
 ## Development
 
 - [QUICKSTART.md](QUICKSTART.md) — run the integration in a local Home Assistant.
-- CI runs `hassfest`, the HACS action and `ruff` (see `.github/workflows/`).
+- CI runs `hassfest`, the HACS action, `ruff` and `pytest` (see
+  `.github/workflows/`).
+
+### Releasing
+
+Versions are [semver](https://semver.org/) and live in **two places that must
+agree**: the `version` field in `custom_components/tibber_app/manifest.json` (what
+Home Assistant reports as installed) and the git tag (what HACS offers). To cut a
+release:
+
+```bash
+# 1. bump "version" in custom_components/tibber_app/manifest.json, e.g. 0.2.0
+git commit -am "Release 0.2.0"
+git tag v0.2.0
+git push origin main --tags
+```
+
+`.github/workflows/release.yml` then verifies the tag matches the manifest —
+failing the release if it doesn't — and publishes a GitHub release with
+auto-generated notes and a `tibber_app.zip` asset. HACS users see the update on
+their next refresh.
