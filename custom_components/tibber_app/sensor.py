@@ -45,6 +45,23 @@ def _parse_dt(value: Any) -> datetime | None:
     return dt_util.parse_datetime(value)
 
 
+# When a vehicle has no upcoming departure (no schedule for the day, or the last
+# one already passed) the API echoes back the current server time instead of
+# null, which makes the sensor tick once per poll forever. Treat any value that
+# is not comfortably in the future as "no target departure".
+DEPARTURE_PAST_TOLERANCE = timedelta(minutes=2)
+
+
+def _parse_departure(value: Any) -> datetime | None:
+    parsed = _parse_dt(value)
+    if parsed is None:
+        return None
+    aware = parsed if parsed.tzinfo else dt_util.as_local(parsed)
+    if aware <= dt_util.utcnow() + DEPARTURE_PAST_TOLERANCE:
+        return None
+    return parsed
+
+
 # --- description dataclasses ------------------------------------------------
 @dataclass(frozen=True, kw_only=True)
 class TibberSensorDescription(SensorEntityDescription):
@@ -107,7 +124,7 @@ VEHICLE_SENSORS: tuple[TibberSensorDescription, ...] = (
         translation_key="target_departure",
         device_class=SensorDeviceClass.TIMESTAMP,
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda v: _parse_dt(
+        value_fn=lambda v: _parse_departure(
             (v.get("charging") or {}).get("targetedDepartureTime")
         ),
     ),

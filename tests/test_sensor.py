@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 
 from custom_components.tibber_app.const import DOMAIN
+from custom_components.tibber_app.sensor import _parse_departure
 
 
 def _entity_id(hass, setup_integration, platform: str, unique_id_suffix: str) -> str:
@@ -42,11 +46,27 @@ class TestVehicleSensors:
         assert state.state == "IDLE"
 
     async def test_session_energy_state(self, hass, setup_integration):
-        entity_id = _entity_id(
-            hass, setup_integration, "sensor", "ev-1_session_energy"
-        )
+        entity_id = _entity_id(hass, setup_integration, "sensor", "ev-1_session_energy")
         state = hass.states.get(entity_id)
         assert state.state == "12.5"
+
+
+class TestTargetDeparture:
+    """The API echoes the current time when no departure is scheduled."""
+
+    def test_future_time_is_kept(self):
+        value = (dt_util.utcnow() + timedelta(hours=5)).isoformat()
+        assert _parse_departure(value) == dt_util.parse_datetime(value)
+
+    def test_current_time_is_dropped(self):
+        assert _parse_departure(dt_util.utcnow().isoformat()) is None
+
+    def test_past_time_is_dropped(self):
+        stale = (dt_util.utcnow() - timedelta(hours=3)).isoformat()
+        assert _parse_departure(stale) is None
+
+    def test_missing_value_is_dropped(self):
+        assert _parse_departure(None) is None
 
 
 class TestChargerSensors:
@@ -91,16 +111,12 @@ class TestHomeSensors:
         assert state.state == "150.0"
 
     async def test_cost_month_state(self, hass, setup_integration):
-        entity_id = _entity_id(
-            hass, setup_integration, "sensor", "home-1_cost_month"
-        )
+        entity_id = _entity_id(hass, setup_integration, "sensor", "home-1_cost_month")
         state = hass.states.get(entity_id)
         assert state.state == "185.0"
 
     async def test_cost_month_currency(self, hass, setup_integration):
-        entity_id = _entity_id(
-            hass, setup_integration, "sensor", "home-1_cost_month"
-        )
+        entity_id = _entity_id(hass, setup_integration, "sensor", "home-1_cost_month")
         state = hass.states.get(entity_id)
         assert state.attributes.get("unit_of_measurement") == "NOK"
 
