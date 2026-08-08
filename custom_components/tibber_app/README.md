@@ -1,17 +1,17 @@
-# Tibber app (unofficial) — Home Assistant integration
+# Better Tibber — Home Assistant integration
 
 A custom component that exposes the **Tibber mobile app** GraphQL API
 (`app.tibber.com`) as native Home Assistant entities — EV/charger control, a live
 real-time meter, prices, and (where present) battery, solar and thermostats.
 
-> ⚠️ **Unofficial.** Not endorsed by Tibber; the API may change or break without
-> notice. Use your own account and respect the rate limit.
+> Not affiliated with or endorsed by Tibber. The app API is undocumented and may
+> change without notice.
 
 ## Installation
 
 1. Copy `custom_components/tibber_app/` into your Home Assistant `config/custom_components/`.
 2. Restart Home Assistant.
-3. **Settings → Devices & Services → Add Integration → "Tibber (unofficial app API)"**.
+3. **Settings → Devices & Services → Add Integration → "Better Tibber"**.
 4. Enter your Tibber app email + password. The integration logs in, stores the
    token, and auto-discovers your homes and devices.
 

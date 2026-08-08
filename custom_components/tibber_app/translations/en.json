@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Tibber app login",
+        "title": "Better Tibber login",
         "description": "Log in with your Tibber app email and password. These credentials are stored locally and used to obtain an access token.",
         "data": {
           "email": "Email",
@@ -10,7 +10,7 @@
         }
       },
       "reauth_confirm": {
-        "title": "Tibber app re-authentication",
+        "title": "Better Tibber re-authentication",
         "description": "The stored credentials for {email} stopped working. Enter the password again.",
         "data": {
           "password": "Password"

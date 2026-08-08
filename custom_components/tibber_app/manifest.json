@@ -1,12 +1,12 @@
 {
   "domain": "tibber_app",
-  "name": "Tibber (unofficial app API)",
-  "codeowners": [],
+  "name": "Better Tibber",
+  "codeowners": ["@Donkie"],
   "config_flow": true,
-  "documentation": "https://github.com/danielhultgren/tibber-unofficial-api",
+  "documentation": "https://github.com/Donkie/hass-tibber",
   "integration_type": "hub",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/danielhultgren/tibber-unofficial-api/issues",
+  "issue_tracker": "https://github.com/Donkie/hass-tibber/issues",
   "requirements": [],
   "version": "0.1.0"
 }

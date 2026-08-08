@@ -1,4 +1,4 @@
-"""Config flow for the Tibber app integration."""
+"""Config flow for the Better Tibber integration."""
 
 from __future__ import annotations
 

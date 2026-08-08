@@ -1,4 +1,4 @@
-"""The Tibber (unofficial app API) integration."""
+"""The Better Tibber integration."""
 
 from __future__ import annotations
 

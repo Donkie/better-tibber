@@ -14,7 +14,7 @@ docker logs -f ha-tibber          # watch startup; Ctrl-C to stop tailing
 ```
 
 Open <http://localhost:8123>, create the onboarding account, then:
-**Settings → Devices & Services → Add Integration → “Tibber (unofficial app API)”**
+**Settings → Devices & Services → Add Integration → “Better Tibber”**
 and enter your Tibber email + password.
 
 ## 2. After changing the code

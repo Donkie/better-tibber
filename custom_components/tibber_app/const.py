@@ -1,4 +1,4 @@
-"""Constants for the Tibber (unofficial app API) integration."""
+"""Constants for the Better Tibber integration."""
 
 from __future__ import annotations
 
