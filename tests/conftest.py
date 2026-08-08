@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
+from aiohttp import ClientResponse
+from aioresponses.core import RequestMatch
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.tibber_app.const import (
@@ -15,6 +18,30 @@ from custom_components.tibber_app.const import (
     CONF_TOKEN,
     DOMAIN,
 )
+
+# aiohttp>=3.14 added a required `stream_writer` kwarg to ClientResponse.__init__,
+# which aioresponses (still 0.7.9 on PyPI) doesn't supply yet — every mocked
+# response raises TypeError. Upstream fix is stuck in an unmerged PR
+# (https://github.com/pnuckowski/aioresponses/pull/288); rather than depend on an
+# unreleased fork, shim it here. Feature-detected, so this is a no-op once either
+# side ships a real fix.
+if "stream_writer" in inspect.signature(ClientResponse).parameters:
+
+    class _StreamWriterCompatResponse(ClientResponse):
+        def __init__(self, *args, **kwargs) -> None:
+            kwargs.setdefault("stream_writer", Mock(output_size=0))
+            super().__init__(*args, **kwargs)
+
+    _original_build_response = RequestMatch._build_response
+
+    def _build_response_with_stream_writer(self, *args, **kwargs):
+        # aioresponses always passes response_class=<None-or-explicit> by keyword
+        # (see RequestMatch.build_response), so setdefault() would never fire.
+        if kwargs.get("response_class") is None:
+            kwargs["response_class"] = _StreamWriterCompatResponse
+        return _original_build_response(self, *args, **kwargs)
+
+    RequestMatch._build_response = _build_response_with_stream_writer
 
 
 def load_fixture(name: str) -> dict:
