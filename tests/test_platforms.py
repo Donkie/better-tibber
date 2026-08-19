@@ -105,6 +105,14 @@ class TestVehicleNumber:
         )
         assert state.attributes["unit_of_measurement"] == "%"
 
+    async def test_no_manual_soc_for_connected_vehicle(
+        self, hass, connected_vehicle_poll_data, setup_integration
+    ):
+        """A vehicle that reports its own level has no manual override to write."""
+        reg = er.async_get(hass)
+        uid = f"{setup_integration.entry_id}_ev-1_manual_soc"
+        assert reg.async_get_entity_id("number", DOMAIN, uid) is None
+
 
 class TestChargerNumbers:
     async def test_max_current_reads_user_settings(self, hass, setup_integration):

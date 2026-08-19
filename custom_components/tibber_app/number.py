@@ -36,6 +36,14 @@ async def async_setup_entry(
     entities: list[NumberEntity] = []
 
     for dev in coordinator.devices_of_type(GIZMO_ELECTRIC_VEHICLE):
+        # A manufacturer-connected vehicle reports its own charge level, and the
+        # app hides the manual editor as soon as canReadLevel is true — writing
+        # the override for such a vehicle is rejected by the backend. Anything
+        # other than an explicit true keeps the entity, so vehicles that don't
+        # report the flag at all behave as before.
+        battery = (coordinator.data.vehicles.get(dev.id) or {}).get("battery") or {}
+        if battery.get("canReadLevel") is True:
+            continue
         entities.append(TibberVehicleSocNumber(coordinator, dev))
     for dev in coordinator.devices_of_type(GIZMO_EV_CHARGER):
         entities += [
@@ -49,7 +57,10 @@ async def async_setup_entry(
 
 
 class TibberVehicleSocNumber(TibberEntity, NumberEntity):
-    """Manual state-of-charge override (the repo's original use case)."""
+    """Manual state-of-charge override (the repo's original use case).
+
+    Only created for vehicles whose level Tibber cannot read itself.
+    """
 
     _attr_translation_key = "manual_soc"
     _attr_native_min_value = 0

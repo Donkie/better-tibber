@@ -32,7 +32,7 @@ real-time meter, prices, and (where present) battery, solar and thermostats.
 
 | Device | Entities |
 |---|---|
-| **Vehicle** | battery %, range, charging/smart-charging status, session energy, session cost, target charge/departure · online + charging binary sensors · **manual state-of-charge number** · **smart-charging switch** · **weekly departure schedule** (see below) |
+| **Vehicle** | battery %, range, charging/smart-charging status, session energy, session cost, target charge/departure · online + charging binary sensors · **manual state-of-charge number** (only where Tibber can't read the level itself) · **smart-charging switch** · **weekly departure schedule** (see below) |
 | **Charger** | charging status, last seen, active vehicle · online binary sensor · **preferred-vehicle select** · permanent-cable-lock & fuse-load-balancing switches · max-current / main-fuse / offline-fallback numbers |
 | **Pulse (live)** | power, production, phase currents/voltages, consumption/production/cost today, signal · online* / peak-exceeded binary sensors |
 | **Home** | electricity price (+ today/tomorrow arrays), consumption & cost this month · Grid Rewards this month (where available) · **hourly forecast `weather` entity** · away-mode / peak-control switches · peak-limit number · refresh button |
@@ -60,6 +60,12 @@ vehicles use `offline.vehicle.smartCharging.isEnabled` /
 namespace is rejected by the backend with a *Request Validation Error*, so — like
 the Tibber app itself — the full key is matched by suffix against each vehicle's
 own `userSettings`, and the entities only appear when the vehicle has them.
+
+The manual state-of-charge number is the exception: its key
+(`offline.vehicle.batteryLevel`) really is fixed, because the override only
+exists for vehicles Tibber can't read the level from. The app shows that editor
+only when `battery.canReadLevel` is false, so a manufacturer-connected vehicle —
+which reports its own level — gets no number entity.
 
 So the weekly schedule is just the seven `time.<vehicle>_departure_<weekday>`
 entities; automate or adjust them like any other HA time helper. (Target

@@ -10,7 +10,7 @@
       "battery": {
         "level": 75,
         "estimatedRange": 200,
-        "canReadLevel": true
+        "canReadLevel": false
       },
       "charging": {
         "summary": {

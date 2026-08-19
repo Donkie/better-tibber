@@ -33,6 +33,13 @@ class TestVehicleSensors:
         state = hass.states.get(entity_id)
         assert state.attributes["unit_of_measurement"] == "%"
 
+    async def test_battery_level_read_for_connected_vehicle(
+        self, hass, connected_vehicle_poll_data, setup_integration
+    ):
+        """Reading SoC is unaffected by there being no manual override to write."""
+        entity_id = _entity_id(hass, setup_integration, "sensor", "ev-1_battery_level")
+        assert hass.states.get(entity_id).state == "75"
+
     async def test_estimated_range_state(self, hass, setup_integration):
         entity_id = _entity_id(hass, setup_integration, "sensor", "ev-1_range")
         state = hass.states.get(entity_id)

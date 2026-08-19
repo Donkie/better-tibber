@@ -36,7 +36,10 @@ MANUFACTURER = "Tibber"
 # Charger preferredVehicleId sentinel meaning "Auto" (let Tibber pick).
 PREFERRED_VEHICLE_AUTO = "00000000-0000-0000-0000-000000000000"
 
-# Vehicle setting key for the manual state-of-charge override.
+# Vehicle setting key for the manual state-of-charge override. Unlike the
+# smart-charging keys below this one is not namespaced — the app hardcodes it for
+# every vehicle (SmartChargingAction.SetStateOfCharge), because the override only
+# exists for vehicles Tibber cannot read the level from in the first place.
 VEHICLE_SOC_KEY = "offline.vehicle.batteryLevel"
 
 # Vehicle smart-charging setting keys (read/written via setVehicleSettings).

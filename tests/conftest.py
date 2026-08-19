@@ -70,9 +70,12 @@ def connected_vehicle_poll_data(poll_data: dict) -> dict:
 
     Those vehicles keep their smart-charging settings under "online.vehicle."
     rather than "offline.vehicle.", and nest the departure schedule one level
-    deeper; the keys below are from a real account. Monday is given a time so the
-    read path is covered along with the unset "No departure time" placeholder.
+    deeper; the keys below are from a real account. Such a vehicle also reports
+    its own charge level, so there is no manual-SoC setting at all. Monday is
+    given a time so the read path is covered along with the unset "No departure
+    time" placeholder.
     """
+    poll_data["me"]["vehicle_ev_1"]["battery"]["canReadLevel"] = True
     poll_data["me"]["vehicle_ev_1"]["userSettings"] = [
         {"key": "online.vehicle.smartCharging.isEnabled", "value": True},
         *(
