@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 from typing import Any
 
@@ -15,7 +16,7 @@ from . import TibberConfigEntry
 from .const import (
     GIZMO_ELECTRIC_VEHICLE,
     GIZMO_EV_CHARGER,
-    VEHICLE_SMART_CHARGING_KEY,
+    VEHICLE_SMART_CHARGING_SUFFIX,
 )
 from .coordinator import TibberDataUpdateCoordinator, TibberDevice
 from .entity import TibberEntity, TibberHomeEntity
@@ -26,6 +27,7 @@ CHARGER_SWITCHES: tuple[tuple[str, str], ...] = (
     ("fuseLoadBalancing", "load_balancing"),
 )
 
+_LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 0
 
@@ -45,7 +47,13 @@ async def async_setup_entry(
             for key, tkey in CHARGER_SWITCHES
         ]
     for dev in coordinator.devices_of_type(GIZMO_ELECTRIC_VEHICLE):
-        entities.append(TibberSmartChargingSwitch(coordinator, dev))
+        # Only vehicles that expose the toggle can be switched; which namespace it
+        # lives in depends on how the vehicle was added to the account.
+        key = coordinator.vehicle_setting_key(dev.id, VEHICLE_SMART_CHARGING_SUFFIX)
+        if key is None:
+            _LOGGER.debug("No smart-charging setting for vehicle %s", dev.id)
+            continue
+        entities.append(TibberSmartChargingSwitch(coordinator, dev, key))
     for home_id in coordinator.home_titles:
         entities.append(TibberAwayModeSwitch(coordinator, home_id))
         entities.append(TibberPeakControlSwitch(coordinator, home_id))
@@ -95,15 +103,30 @@ class TibberSmartChargingSwitch(TibberEntity, SwitchEntity):
     _attr_translation_key = "smart_charging"
 
     def __init__(
-        self, coordinator: TibberDataUpdateCoordinator, device: TibberDevice
+        self,
+        coordinator: TibberDataUpdateCoordinator,
+        device: TibberDevice,
+        setting_key: str,
     ) -> None:
         super().__init__(coordinator, device, "smart_charging")
+        self._fallback_key = setting_key
+
+    @property
+    def _setting_key(self) -> str:
+        """The key this vehicle currently exposes, else the one found at setup."""
+        return (
+            self.coordinator.vehicle_setting_key(
+                self._device.id, VEHICLE_SMART_CHARGING_SUFFIX
+            )
+            or self._fallback_key
+        )
 
     @property
     def is_on(self) -> bool | None:
         node = self.coordinator.data.vehicles.get(self._device.id) or {}
+        key = self._setting_key
         for setting in node.get("userSettings") or []:
-            if setting.get("key") == VEHICLE_SMART_CHARGING_KEY:
+            if setting.get("key") == key:
                 return str(setting.get("value")).lower() in ("true", "1")
         return None
 
@@ -111,7 +134,7 @@ class TibberSmartChargingSwitch(TibberEntity, SwitchEntity):
         await self.coordinator.async_set_vehicle_setting(
             self._device.id,
             self._device.home_id,
-            VEHICLE_SMART_CHARGING_KEY,
+            self._setting_key,
             value,
         )
 

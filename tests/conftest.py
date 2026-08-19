@@ -17,6 +17,7 @@ from custom_components.tibber_app.const import (
     CONF_PASSWORD,
     CONF_TOKEN,
     DOMAIN,
+    WEEKDAYS,
 )
 
 # aiohttp>=3.14 added a required `stream_writer` kwarg to ClientResponse.__init__,
@@ -61,6 +62,29 @@ def discovery_data() -> dict:
 @pytest.fixture
 def poll_data() -> dict:
     return load_fixture("poll.json")
+
+
+@pytest.fixture
+def connected_vehicle_poll_data(poll_data: dict) -> dict:
+    """Poll data for a manufacturer-connected vehicle (issue #1).
+
+    Those vehicles keep their smart-charging settings under "online.vehicle."
+    rather than "offline.vehicle.", and nest the departure schedule one level
+    deeper; the keys below are from a real account. Monday is given a time so the
+    read path is covered along with the unset "No departure time" placeholder.
+    """
+    poll_data["me"]["vehicle_ev_1"]["userSettings"] = [
+        {"key": "online.vehicle.smartCharging.isEnabled", "value": True},
+        *(
+            {
+                "key": f"online.vehicle.smartCharging.departureTimes.{day}",
+                "value": "07:00" if day == "monday" else "No departure time",
+            }
+            for day in WEEKDAYS
+        ),
+        {"key": "online.vehicle.smartCharging.minChargeLimit", "value": 30},
+    ]
+    return poll_data
 
 
 @pytest.fixture

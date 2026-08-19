@@ -1,8 +1,9 @@
 """Time platform: the weekly EV smart-charging departure schedule.
 
-Each vehicle exposes one time entity per weekday, backed by the
-``offline.vehicle.departureTimes.<day>`` user setting ("HH:MM"). Together they form
-the weekly smart-charging schedule shown in the Tibber app.
+Each vehicle exposes one time entity per weekday, backed by its
+``…departureTimes.<day>`` user setting ("HH:MM"). Together they form the weekly
+smart-charging schedule shown in the Tibber app. The setting is namespaced by how
+the vehicle was added, so the full key is resolved per vehicle.
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TibberConfigEntry
-from .const import GIZMO_ELECTRIC_VEHICLE, VEHICLE_DEPARTURE_KEY, WEEKDAYS
+from .const import GIZMO_ELECTRIC_VEHICLE, VEHICLE_DEPARTURE_SUFFIX, WEEKDAYS
 from .coordinator import TibberDataUpdateCoordinator, TibberDevice
 from .entity import TibberEntity
 
@@ -30,12 +31,17 @@ async def async_setup_entry(
     coordinator = entry.runtime_data.coordinator
     entities: list[TimeEntity] = []
     for dev in coordinator.devices_of_type(GIZMO_ELECTRIC_VEHICLE):
-        node = coordinator.data.vehicles.get(dev.id) or {}
-        keys = {s.get("key") for s in node.get("userSettings") or []}
-        # Only expose the schedule for vehicles that actually have it.
-        if VEHICLE_DEPARTURE_KEY.format(day="monday") not in keys:
+        # Only expose the schedule for vehicles that actually have it. Monday's
+        # key also pins down the namespace the whole week lives in.
+        monday_key = coordinator.vehicle_setting_key(
+            dev.id, VEHICLE_DEPARTURE_SUFFIX.format(day="monday")
+        )
+        if monday_key is None:
             continue
-        entities += [TibberDepartureTime(coordinator, dev, day) for day in WEEKDAYS]
+        prefix = monday_key[: -len("monday")]
+        entities += [
+            TibberDepartureTime(coordinator, dev, day, prefix + day) for day in WEEKDAYS
+        ]
     async_add_entities(entities)
 
 
@@ -47,17 +53,28 @@ class TibberDepartureTime(TibberEntity, TimeEntity):
         coordinator: TibberDataUpdateCoordinator,
         device: TibberDevice,
         weekday: str,
+        setting_key: str,
     ) -> None:
         super().__init__(coordinator, device, f"departure_{weekday}")
         self._weekday = weekday
-        self._setting_key = VEHICLE_DEPARTURE_KEY.format(day=weekday)
+        self._suffix = VEHICLE_DEPARTURE_SUFFIX.format(day=weekday)
+        self._fallback_key = setting_key
         self._attr_translation_key = f"departure_{weekday}"
+
+    @property
+    def _setting_key(self) -> str:
+        """The key this vehicle currently exposes, else the one found at setup."""
+        return (
+            self.coordinator.vehicle_setting_key(self._device.id, self._suffix)
+            or self._fallback_key
+        )
 
     @property
     def native_value(self) -> dt_time | None:
         node = self.coordinator.data.vehicles.get(self._device.id) or {}
+        key = self._setting_key
         for setting in node.get("userSettings") or []:
-            if setting.get("key") == self._setting_key:
+            if setting.get("key") == key:
                 raw = str(setting.get("value") or "")
                 parts = raw.split(":")
                 if len(parts) == 2 and all(p.isdigit() for p in parts):

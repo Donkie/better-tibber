@@ -262,6 +262,33 @@ class TestDepartureTimeEntities:
         assert setting["key"] == "offline.vehicle.departureTimes.monday"
         assert setting["value"] == "08:30"
 
+    async def test_connected_vehicle_uses_its_own_namespace(
+        self, hass, connected_vehicle_poll_data, setup_integration
+    ):
+        """A connected vehicle reads and writes its "online." keys (issue #1)."""
+        entity_id = _eid(hass, setup_integration, "time", "ev-1_departure_monday")
+        assert hass.states.get(entity_id).state == "07:00:00"
+        # Days without a time read as unknown rather than a bogus value.
+        tuesday = _eid(hass, setup_integration, "time", "ev-1_departure_tuesday")
+        assert hass.states.get(tuesday).state == "unknown"
+
+        coordinator = setup_integration.runtime_data.coordinator
+        coordinator.async_request_refresh = AsyncMock()
+
+        mutation_mock = AsyncMock(return_value={})
+        with patch.object(coordinator.client, "gql", new=mutation_mock):
+            await hass.services.async_call(
+                "time",
+                "set_value",
+                {"entity_id": entity_id, "time": "08:30:00"},
+                blocking=True,
+            )
+
+        _, variables = mutation_mock.call_args.args
+        setting = variables["settings"][0]
+        assert setting["key"] == "online.vehicle.smartCharging.departureTimes.monday"
+        assert setting["value"] == "08:30"
+
 
 # ---------------------------------------------------------------------------
 # button

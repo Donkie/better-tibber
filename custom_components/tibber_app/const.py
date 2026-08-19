@@ -40,7 +40,12 @@ PREFERRED_VEHICLE_AUTO = "00000000-0000-0000-0000-000000000000"
 VEHICLE_SOC_KEY = "offline.vehicle.batteryLevel"
 
 # Vehicle smart-charging setting keys (read/written via setVehicleSettings).
-VEHICLE_SMART_CHARGING_KEY = "offline.vehicle.smartCharging.isEnabled"
+# These are namespaced by how the vehicle was added: manually added vehicles use
+# "offline.vehicle.", manufacturer-connected ones "online.vehicle.smartCharging."
+# — and writing the wrong namespace is rejected by the backend. The Tibber app
+# matches the keys it gets back by suffix rather than assuming a namespace, so we
+# do the same and resolve the full key from each vehicle's own userSettings.
+VEHICLE_SMART_CHARGING_SUFFIX = "smartCharging.isEnabled"
 # Weekly departure schedule: one "HH:MM" string per weekday.
 WEEKDAYS = (
     "monday",
@@ -51,7 +56,7 @@ WEEKDAYS = (
     "saturday",
     "sunday",
 )
-VEHICLE_DEPARTURE_KEY = "offline.vehicle.departureTimes.{day}"
+VEHICLE_DEPARTURE_SUFFIX = "departureTimes.{day}"
 
 # Battery operation modes (HomeBatteryOperationMode enum).
 BATTERY_MODES = ["BASIC", "SMART_EARNINGS", "SMART_SELF_CONSUMPTION"]

@@ -182,6 +182,21 @@ class TibberDataUpdateCoordinator(DataUpdateCoordinator[TibberData]):
         """Return discovered devices of a given gizmo type."""
         return [d for d in self.devices if d.type == gizmo_type]
 
+    def vehicle_setting_key(self, vehicle_id: str, suffix: str) -> str | None:
+        """Return the vehicle's own setting key ending in ``suffix``, if any.
+
+        Setting keys are namespaced by how the vehicle was added (``offline.``
+        for manually added ones, ``online.`` for manufacturer-connected ones),
+        so the key to read and write has to come from the vehicle's own
+        userSettings rather than a hardcoded namespace.
+        """
+        node = (self.data.vehicles.get(vehicle_id) if self.data else None) or {}
+        for setting in node.get("userSettings") or []:
+            key = setting.get("key")
+            if isinstance(key, str) and key.endswith(suffix):
+                return key
+        return None
+
     async def _fetch_grid_rewards(self) -> None:
         """Fetch current-month rewards for eligible homes, tolerating errors."""
         if not self.grid_reward_homes:

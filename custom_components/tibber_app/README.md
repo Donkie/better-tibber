@@ -43,14 +43,23 @@ real-time meter, prices, and (where present) battery, solar and thermostats.
 ### Weekly smart-charging schedule
 
 Tibber's smart charging stores a **per-weekday departure time** plus a master
-on/off, all as vehicle user settings (`offline.vehicle.smartCharging.isEnabled`
-and `offline.vehicle.departureTimes.<weekday>`). These are exposed as real,
-read-write entities on each vehicle:
+on/off, all as vehicle user settings (`…smartCharging.isEnabled` and
+`…departureTimes.<weekday>`). These are exposed as real, read-write entities on
+each vehicle:
 
 - **Smart charging** — a `switch` reflecting the actual `isEnabled` flag (not
   optimistic — it reads the stored value back).
 - **Departure Monday … Departure Sunday** — seven `time` entities, one per weekday.
   Setting one writes `"HH:MM"` back via `setVehicleSettings`.
+
+Both settings are **namespaced by how the vehicle was added**: manually added
+vehicles use `offline.vehicle.smartCharging.isEnabled` /
+`offline.vehicle.departureTimes.<weekday>`, manufacturer-connected ones
+`online.vehicle.smartCharging.isEnabled` /
+`online.vehicle.smartCharging.departureTimes.<weekday>`. Writing the wrong
+namespace is rejected by the backend with a *Request Validation Error*, so — like
+the Tibber app itself — the full key is matched by suffix against each vehicle's
+own `userSettings`, and the entities only appear when the vehicle has them.
 
 So the weekly schedule is just the seven `time.<vehicle>_departure_<weekday>`
 entities; automate or adjust them like any other HA time helper. (Target
