@@ -532,6 +532,7 @@ class TibberPriceSensor(TibberHomeEntity, SensorEntity):
 
     _attr_translation_key = "electricity_price"
     _attr_state_class = SensorStateClass.MEASUREMENT
+    _unrecorded_attributes = frozenset({"today", "tomorrow"})
 
     def __init__(self, coordinator: TibberDataUpdateCoordinator, home_id: str) -> None:
         super().__init__(coordinator, home_id, "electricity_price")
