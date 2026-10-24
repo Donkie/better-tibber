@@ -63,7 +63,15 @@
       "electricity_price": { "name": "Electricity price" },
       "consumption_month": { "name": "Consumption this month" },
       "cost_month": { "name": "Cost this month" },
-      "grid_rewards_month": { "name": "Grid Rewards this month" }
+      "grid_rewards_month": { "name": "Grid Rewards this month" },
+      "next_planned_charge": { "name": "Next planned charge" },
+      "planned_charge_end": { "name": "Planned charge end" },
+      "planned_energy": { "name": "Planned energy" },
+      "planned_cost": { "name": "Planned cost" },
+      "planned_charge_power": { "name": "Planned charge power" },
+      "planned_average_price": { "name": "Planned average price" },
+      "planned_grid_rewards": { "name": "Planned Grid Rewards" },
+      "planned_charging_time": { "name": "Planned charging time" }
     },
     "time": {
       "departure_monday": { "name": "Departure Monday" },
@@ -78,7 +86,8 @@
       "online": { "name": "Online" },
       "charging": { "name": "Charging" },
       "grid_rewards_enabled": { "name": "Grid Rewards enabled" },
-      "peak_exceeded": { "name": "Peak exceeded" }
+      "peak_exceeded": { "name": "Peak exceeded" },
+      "charging_planned": { "name": "Charging planned" }
     },
     "number": {
       "manual_soc": { "name": "Manual state of charge" },
@@ -101,6 +110,9 @@
     "button": {
       "refresh": { "name": "Refresh" },
       "clear_all_departure_times": { "name": "Clear all departure times" }
+    },
+    "calendar": {
+      "charging_plan": { "name": "Charging plan" }
     }
   }
 }

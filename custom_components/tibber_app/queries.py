@@ -30,7 +30,8 @@ VEHICLE_FIELDS = """
   battery { level estimatedRange canReadLevel }
   charging {
     summary { energyConsumed total }
-    targetedStateOfCharge targetedDepartureTime
+    targetedStateOfCharge targetedDepartureTime currency
+    days { periods { startAt stopAt fromStateOfCharge toStateOfCharge energy cost gridReward } }
   }
   userSettings { key value }
 """
