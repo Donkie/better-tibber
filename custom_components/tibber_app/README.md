@@ -32,7 +32,7 @@ real-time meter, prices, and (where present) battery, solar and thermostats.
 
 | Device | Entities |
 |---|---|
-| **Vehicle** | battery %, range, charging/smart-charging status, session energy, session cost, target charge/departure · online + charging binary sensors · **manual state-of-charge number** (only where Tibber can't read the level itself) · **smart-charging switch** · **weekly departure schedule and clear-all button** (see below) |
+| **Vehicle** | battery %, range, charging/smart-charging status, session energy, session cost, target charge/departure · online + charging binary sensors · **manual state-of-charge number** (only where Tibber can't read the level itself) · **smart-charging switch** · **weekly departure schedule and clear-all button** · **charging plan** calendar, binary sensor and sensors (see below) |
 | **Charger** | charging status, last seen, active vehicle · online binary sensor · **preferred-vehicle select** · permanent-cable-lock & fuse-load-balancing switches · max-current / main-fuse / offline-fallback numbers |
 | **Pulse (live)** | power, production, phase currents/voltages, consumption/production/cost today, signal · online* / peak-exceeded binary sensors |
 | **Home** | electricity price (+ today/tomorrow arrays), consumption & cost this month · Grid Rewards this month (where available) · **hourly forecast `weather` entity** · away-mode / peak-control switches · peak-limit number · refresh button |
@@ -91,6 +91,23 @@ target:
 The selected entities identify both the vehicle and weekdays; no Tibber vehicle
 ID or Home Assistant device ID is required. Use the vehicle's *Clear all
 departure times* button when the entire weekly schedule should be emptied.
+
+### Charging plan
+
+Tibber's planned charge windows (what the app shows as the vehicle's plan) are
+exposed per vehicle, e.g. to keep other big loads out of the car's slots:
+
+- **Charging plan** calendar: one event per planned window
+  (`Charging 57% → 89%`), so calendar triggers and `calendar.get_events` work.
+- **Charging planned** binary sensor: on during a planned window. Attributes:
+  `current_end`, `next_start`, `next_end` and the full `windows` list.
+- **Next planned charge**, **Planned charge end**, **Planned energy**,
+  **Planned cost** sensors, plus **Planned charge power**, **Planned average
+  price**, **Planned Grid Rewards** and **Planned charging time** (disabled by
+  default).
+
+Back-to-back periods are merged into one window, and only the plan ahead is
+known: finished windows drop off.
 
 \* Phase voltages/currents and signal strength are disabled by default — enable
 them per entity if you want them.

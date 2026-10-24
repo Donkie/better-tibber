@@ -14,6 +14,7 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import dt as dt_util
 
 from . import TibberConfigEntry
 from .const import (
@@ -22,7 +23,7 @@ from .const import (
     GIZMO_EV_CHARGER,
     GIZMO_REAL_TIME_METER,
 )
-from .coordinator import TibberDataUpdateCoordinator, TibberDevice
+from .coordinator import TibberDataUpdateCoordinator, TibberDevice, charging_windows
 from .entity import TibberEntity
 
 
@@ -98,6 +99,7 @@ async def async_setup_entry(
             TibberDeviceBinary(coordinator, dev, desc, "vehicles")
             for desc in VEHICLE_BINARY
         ]
+        entities.append(TibberChargingPlannedBinary(coordinator, dev))
     for dev in coordinator.devices_of_type(GIZMO_EV_CHARGER):
         entities += [
             TibberDeviceBinary(coordinator, dev, desc, "chargers")
@@ -158,3 +160,41 @@ class TibberPulseBinary(TibberEntity, BinarySensorEntity):
         if node is None:
             return None
         return self.entity_description.value_fn(node)
+
+
+class TibberChargingPlannedBinary(TibberEntity, BinarySensorEntity):
+    """On while the smart-charging plan has the vehicle charging."""
+
+    _attr_translation_key = "charging_planned"
+    # The window list changes every replan; keep it out of recorder history.
+    _unrecorded_attributes = frozenset({"windows"})
+
+    def __init__(
+        self, coordinator: TibberDataUpdateCoordinator, device: TibberDevice
+    ) -> None:
+        super().__init__(coordinator, device, "charging_planned")
+
+    def _windows(self) -> list[dict[str, Any]]:
+        node = self.coordinator.data.vehicles.get(self._device.id) or {}
+        return charging_windows(node, dt_util.utcnow())
+
+    @property
+    def is_on(self) -> bool:
+        windows = self._windows()
+        return bool(windows) and windows[0]["start"] <= dt_util.utcnow()
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        windows = self._windows()
+        now = dt_util.utcnow()
+        current = windows[0] if windows and windows[0]["start"] <= now else None
+        upcoming = [w for w in windows if w is not current]
+        return {
+            "current_end": current["end"].isoformat() if current else None,
+            "next_start": upcoming[0]["start"].isoformat() if upcoming else None,
+            "next_end": upcoming[0]["end"].isoformat() if upcoming else None,
+            "windows": [
+                {**w, "start": w["start"].isoformat(), "end": w["end"].isoformat()}
+                for w in windows
+            ],
+        }

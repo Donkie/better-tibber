@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from datetime import timedelta as _timedelta
 from typing import Any
 
@@ -94,6 +95,48 @@ def _alias(prefix: str, device_id: str) -> str:
 def _device_block(prefix: str, gql_field: str, device_id: str, fields: str) -> str:
     """Build an aliased per-device sub-selection for the combined home query."""
     return f'{_alias(prefix, device_id)}: {gql_field}(id: "{device_id}") {{{fields}}}'
+
+
+def charging_windows(vehicle: dict[str, Any], now: datetime) -> list[dict[str, Any]]:
+    """The vehicle's smart-charging plan as windows that haven't ended yet.
+
+    The app lists the plan per day as charge periods (``charging.days[].periods``,
+    null or empty when there's no plan). The backend splits one charge at
+    quarter-hour price boundaries, so back-to-back periods are merged into a
+    single window. Periods are filtered by time rather than ``type``: only
+    "pending" (planned) and the finished types have been seen.
+    """
+    periods = []
+    for day in (vehicle.get("charging") or {}).get("days") or []:
+        for period in day.get("periods") or []:
+            start = dt_util.parse_datetime(period.get("startAt") or "")
+            end = dt_util.parse_datetime(period.get("stopAt") or "")
+            if start and end and end > now:
+                periods.append((start, end, period))
+
+    windows: list[dict[str, Any]] = []
+    for start, end, period in sorted(periods, key=lambda p: (p[0], p[1])):
+        if windows and start <= windows[-1]["end"]:
+            window = windows[-1]
+            window["end"] = max(window["end"], end)
+            window["to_soc"] = period.get("toStateOfCharge")
+        else:
+            window = {
+                "start": start,
+                "end": end,
+                "from_soc": period.get("fromStateOfCharge"),
+                "to_soc": period.get("toStateOfCharge"),
+                "energy": 0.0,
+                "cost": 0.0,
+                "grid_reward": 0.0,
+            }
+            windows.append(window)
+        # ponytail: a window already underway counts in full until it ends;
+        # prorate by elapsed time if the totals' overshoot ever matters.
+        window["energy"] += period.get("energy") or 0
+        window["cost"] += period.get("cost") or 0
+        window["grid_reward"] += period.get("gridReward") or 0
+    return windows
 
 
 class TibberDataUpdateCoordinator(DataUpdateCoordinator[TibberData]):

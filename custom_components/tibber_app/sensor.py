@@ -21,6 +21,7 @@ from homeassistant.const import (
     UnitOfEnergy,
     UnitOfLength,
     UnitOfPower,
+    UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
@@ -35,7 +36,7 @@ from .const import (
     GIZMO_INVERTER,
     GIZMO_REAL_TIME_METER,
 )
-from .coordinator import TibberDataUpdateCoordinator, TibberDevice
+from .coordinator import TibberDataUpdateCoordinator, TibberDevice, charging_windows
 from .entity import TibberEntity, TibberHomeEntity
 
 
@@ -127,6 +128,108 @@ VEHICLE_SENSORS: tuple[TibberSensorDescription, ...] = (
         value_fn=lambda v: _parse_departure(
             (v.get("charging") or {}).get("targetedDepartureTime")
         ),
+    ),
+)
+
+
+def _plan(v: dict[str, Any]) -> list[dict[str, Any]]:
+    return charging_windows(v, dt_util.utcnow())
+
+
+def _plan_currency(v: dict[str, Any]) -> str | None:
+    return (v.get("charging") or {}).get("currency")
+
+
+def _plan_total(v: dict[str, Any], key: str) -> float:
+    return round(sum(w[key] for w in _plan(v)), 3)
+
+
+def _next_planned_start(v: dict[str, Any]) -> datetime | None:
+    now = dt_util.utcnow()
+    return next((w["start"] for w in _plan(v) if w["start"] > now), None)
+
+
+def _planned_power(v: dict[str, Any]) -> float:
+    """Average power of the window charging right now (0 outside a window)."""
+    now = dt_util.utcnow()
+    for w in _plan(v):
+        if w["start"] <= now:
+            hours = (w["end"] - w["start"]).total_seconds() / 3600
+            return round(w["energy"] / hours, 2) if hours else 0.0
+    return 0.0
+
+
+def _planned_average_price(v: dict[str, Any]) -> float | None:
+    energy = _plan_total(v, "energy")
+    return round(_plan_total(v, "cost") / energy, 3) if energy else None
+
+
+def _planned_minutes(v: dict[str, Any]) -> int:
+    now = dt_util.utcnow()
+    return round(
+        sum((w["end"] - max(w["start"], now)).total_seconds() for w in _plan(v)) / 60
+    )
+
+
+# Aggregates over the remaining smart-charging plan (see charging_windows).
+PLAN_SENSORS: tuple[TibberSensorDescription, ...] = (
+    TibberSensorDescription(
+        key="next_planned_charge",
+        translation_key="next_planned_charge",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=_next_planned_start,
+    ),
+    TibberSensorDescription(
+        key="planned_charge_end",
+        translation_key="planned_charge_end",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda v: plan[-1]["end"] if (plan := _plan(v)) else None,
+    ),
+    TibberSensorDescription(
+        key="planned_energy",
+        translation_key="planned_energy",
+        device_class=SensorDeviceClass.ENERGY,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        value_fn=lambda v: _plan_total(v, "energy"),
+    ),
+    TibberSensorDescription(
+        key="planned_cost",
+        translation_key="planned_cost",
+        device_class=SensorDeviceClass.MONETARY,
+        value_fn=lambda v: _plan_total(v, "cost"),
+        unit_fn=_plan_currency,
+    ),
+    TibberSensorDescription(
+        key="planned_charge_power",
+        translation_key="planned_charge_power",
+        device_class=SensorDeviceClass.POWER,
+        native_unit_of_measurement=UnitOfPower.KILO_WATT,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        value_fn=_planned_power,
+    ),
+    TibberSensorDescription(
+        key="planned_average_price",
+        translation_key="planned_average_price",
+        entity_registry_enabled_default=False,
+        value_fn=_planned_average_price,
+        unit_fn=lambda v: f"{cur}/kWh" if (cur := _plan_currency(v)) else None,
+    ),
+    TibberSensorDescription(
+        key="planned_grid_rewards",
+        translation_key="planned_grid_rewards",
+        device_class=SensorDeviceClass.MONETARY,
+        entity_registry_enabled_default=False,
+        value_fn=lambda v: _plan_total(v, "grid_reward"),
+        unit_fn=_plan_currency,
+    ),
+    TibberSensorDescription(
+        key="planned_charging_time",
+        translation_key="planned_charging_time",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        entity_registry_enabled_default=False,
+        value_fn=_planned_minutes,
     ),
 )
 
@@ -348,7 +451,7 @@ async def async_setup_entry(
     for dev in coordinator.devices_of_type(GIZMO_ELECTRIC_VEHICLE):
         entities += [
             TibberDeviceSensor(coordinator, dev, desc, "vehicles")
-            for desc in VEHICLE_SENSORS
+            for desc in VEHICLE_SENSORS + PLAN_SENSORS
         ]
         entities.append(TibberVehicleSessionCostSensor(coordinator, dev))
     for dev in coordinator.devices_of_type(GIZMO_EV_CHARGER):
@@ -412,6 +515,13 @@ class TibberDeviceSensor(TibberEntity, SensorEntity):
         if node is None:
             return None
         return self.entity_description.value_fn(node)
+
+    @property
+    def native_unit_of_measurement(self) -> str | None:
+        if self.entity_description.unit_fn:
+            node = getattr(self.coordinator.data, self._collection).get(self._device.id)
+            return self.entity_description.unit_fn(node or {})
+        return self.entity_description.native_unit_of_measurement
 
 
 class TibberPulseSensor(TibberEntity, SensorEntity):
@@ -532,6 +642,7 @@ class TibberPriceSensor(TibberHomeEntity, SensorEntity):
 
     _attr_translation_key = "electricity_price"
     _attr_state_class = SensorStateClass.MEASUREMENT
+    _unrecorded_attributes = frozenset({"today", "tomorrow"})
 
     def __init__(self, coordinator: TibberDataUpdateCoordinator, home_id: str) -> None:
         super().__init__(coordinator, home_id, "electricity_price")

@@ -26,6 +26,7 @@ from .live import LiveMeterManager
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
+    Platform.CALENDAR,
     Platform.CLIMATE,
     Platform.NUMBER,
     Platform.SELECT,
