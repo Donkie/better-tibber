@@ -50,7 +50,7 @@ async def async_setup_entry(
             TibberChargerNumber(coordinator, dev, key, tkey, lo, hi, step)
             for key, tkey, lo, hi, step in CHARGER_NUMBERS
         ]
-    for home_id in coordinator.home_titles:
+    for home_id in coordinator.peak_control_homes:
         entities.append(TibberPeakLimitNumber(coordinator, home_id))
 
     async_add_entities(entities)

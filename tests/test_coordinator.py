@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.tibber_app.api import TibberApiError
 from custom_components.tibber_app.const import (
     CONF_EMAIL,
     CONF_PASSWORD,
@@ -94,6 +95,43 @@ class TestDiscovery:
         pulses = coord.devices_of_type(GIZMO_REAL_TIME_METER)
         assert len(pulses) == 1
         assert pulses[0].id == "pulse-1"
+
+    async def test_peak_control_refused_is_left_out(
+        self, hass, discovery_data, poll_data
+    ):
+        """Issue #4: a home refused peak control must not fail the poll."""
+        coord = _make_coordinator(hass, discovery_data, poll_data)
+        fallback = coord.client.gql.side_effect
+
+        async def _gql(query, variables=None, *, partial_ok=False):
+            if "peakControlData { isActive }" in query:
+                raise TibberApiError(
+                    "GraphQL error: Home is not allowed to fetch PeakControl Gizmo data"
+                )
+            return await fallback(query, variables, partial_ok=partial_ok)
+
+        coord.client.gql.side_effect = _gql
+        await coord.async_discover()
+
+        assert coord.peak_control_homes == set()
+        assert "peakControlData" not in coord._build_query()
+
+    async def test_peak_control_kept_on_transient_error(
+        self, hass, discovery_data, poll_data
+    ):
+        coord = _make_coordinator(hass, discovery_data, poll_data)
+        fallback = coord.client.gql.side_effect
+
+        async def _gql(query, variables=None, *, partial_ok=False):
+            if "peakControlData { isActive }" in query:
+                raise TibberApiError("Request failed: timed out")
+            return await fallback(query, variables, partial_ok=partial_ok)
+
+        coord.client.gql.side_effect = _gql
+        await coord.async_discover()
+
+        assert coord.peak_control_homes == {"home-1"}
+        assert "peakControlData" in coord._build_query()
 
     async def test_deduplicates_vehicle_across_homes(self, hass, poll_data):
         """Vehicle appearing under two homes is only registered once."""
