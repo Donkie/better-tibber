@@ -33,7 +33,13 @@ VEHICLE_FIELDS = """
     targetedStateOfCharge targetedDepartureTime currency
     days { periods { startAt stopAt fromStateOfCharge toStateOfCharge energy cost gridReward } }
   }
-  userSettings { key value }
+  userSettings {
+    key value valueType isReadOnly
+    inputOptions {
+      type rangeOptions { min max step }
+      selectOptions { value } pickerOptions { values }
+    }
+  }
 """
 
 CHARGER_FIELDS = """

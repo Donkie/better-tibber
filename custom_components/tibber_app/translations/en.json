@@ -90,6 +90,7 @@
       "charging_planned": { "name": "Charging planned" }
     },
     "number": {
+      "minimum_charge_level": { "name": "Minimum charge level" },
       "manual_soc": { "name": "Manual state of charge" },
       "max_current": { "name": "Max charge current" },
       "main_fuse": { "name": "Main fuse size" },
