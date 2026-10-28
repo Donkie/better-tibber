@@ -89,6 +89,14 @@ THERMOSTAT_FIELDS = """
   temperatureSensor { measurement { value unit } }
 """
 
+# Probed per home at discovery: some homes (seen in NL) get "Home is not allowed
+# to fetch PeakControl Gizmo data", which would fail the whole first poll.
+PEAK_CONTROL_PROBE = """
+query($homeId: String!) {
+  me { home(id: $homeId) { peakControlData { isActive } } }
+}
+"""
+
 # --- grid rewards (fetched separately; the period query errors when a home has
 #     no rewards data, so it must NOT share the combined poll query) -----------
 GRID_REWARDS_HISTORY = """

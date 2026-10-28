@@ -158,6 +158,8 @@ class TibberDataUpdateCoordinator(DataUpdateCoordinator[TibberData]):
         self.home_titles: dict[str, str] = {}
         # Homes that actually have Grid Rewards data (set at discovery).
         self.grid_reward_homes: set[str] = set()
+        # Homes allowed to fetch peak control (set at discovery).
+        self.peak_control_homes: set[str] = set()
         # Last fetched grid rewards per home (kept across polls; the period query
         # is fetched separately because it errors for homes without data).
         self._grid_rewards: dict[str, dict[str, Any]] = {}
@@ -203,6 +205,7 @@ class TibberDataUpdateCoordinator(DataUpdateCoordinator[TibberData]):
                     )
         self.devices = list(devices.values())
         await self._discover_grid_rewards()
+        await self._discover_peak_control()
         _LOGGER.debug(
             "Discovered %d devices across %d homes",
             len(devices),
@@ -226,6 +229,19 @@ class TibberDataUpdateCoordinator(DataUpdateCoordinator[TibberData]):
                 "valuesTo"
             ):
                 self.grid_reward_homes.add(home_id)
+
+    async def _discover_peak_control(self) -> None:
+        """Flag homes the backend lets us fetch peak control data for."""
+        for home_id in self.home_titles:
+            try:
+                await self.client.gql(queries.PEAK_CONTROL_PROBE, {"homeId": home_id})
+            except TibberApiError as err:
+                # Only a refusal is permanent; anything else (a timeout) keeps
+                # the home in so a flaky discovery doesn't hide its entities.
+                if "not allowed" in str(err):
+                    _LOGGER.debug("Peak control not available for %s: %s", home_id, err)
+                    continue
+            self.peak_control_homes.add(home_id)
 
     def devices_of_type(self, gizmo_type: str) -> list[TibberDevice]:
         """Return discovered devices of a given gizmo type."""
@@ -308,9 +324,10 @@ class TibberDataUpdateCoordinator(DataUpdateCoordinator[TibberData]):
             home_parts = [
                 queries.PRICE_FIELDS,
                 queries.CONSUMPTION_GIZMO_FIELDS,
-                queries.PEAK_CONTROL_FIELDS,
                 queries.WEATHER_FIELDS,
             ]
+            if home_id in self.peak_control_homes:
+                home_parts.append(queries.PEAK_CONTROL_FIELDS)
             for gtype, prefix, gql_field, fields in _HOME_DEVICE_BLOCKS:
                 for dev in self.devices_of_type(gtype):
                     if dev.home_id == home_id:
