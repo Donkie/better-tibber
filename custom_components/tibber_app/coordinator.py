@@ -9,6 +9,7 @@ meter sensors update in near real time.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -88,8 +89,8 @@ class TibberData:
 
 
 def _alias(prefix: str, device_id: str) -> str:
-    """Return a GraphQL-safe alias for a UUID device id."""
-    return f"{prefix}_{device_id.replace('-', '_')}"
+    """Return a GraphQL-safe alias for a device id."""
+    return f"{prefix}_{re.sub(r'[^0-9A-Za-z_]', '_', device_id)}"
 
 
 def _device_block(prefix: str, gql_field: str, device_id: str, fields: str) -> str:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.tibber_app.const import (
@@ -13,6 +14,7 @@ from custom_components.tibber_app.const import (
     DOMAIN,
     GIZMO_ELECTRIC_VEHICLE,
     GIZMO_EV_CHARGER,
+    GIZMO_INVERTER,
     GIZMO_REAL_TIME_METER,
     STALE_GRACE,
 )
@@ -57,6 +59,24 @@ class TestAlias:
 
     def test_no_hyphens_unchanged(self):
         assert _alias("battery", "abc123") == "battery_abc123"
+
+    @pytest.mark.parametrize("separator", ["#", ".", ":", "/", " ", "é"])
+    def test_replaces_invalid_name_characters(self, separator):
+        assert _alias("inverter", f"abc-123{separator}456_AZ") == (
+            "inverter_abc_123_456_AZ"
+        )
+
+    def test_inverter_suffix_in_query_and_response(self, hass):
+        coord = _make_coordinator(hass, {}, {})
+        device_id = "12345678-1234-1234-1234-123456789abc#12345"
+        alias = "inverter_12345678_1234_1234_1234_123456789abc_12345"
+        coord.home_titles = {"home-1": "My Home"}
+        coord.devices = [TibberDevice(device_id, "Kostal", GIZMO_INVERTER, "home-1")]
+
+        assert f'{alias}: inverter(id: "{device_id}")' in coord._build_query()
+        node = {"id": device_id}
+        data = coord._parse({"me": {"home_home_1": {alias: node}}})
+        assert data.inverters == {device_id: node}
 
 
 class TestDiscovery:
