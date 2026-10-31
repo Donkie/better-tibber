@@ -32,7 +32,7 @@ real-time meter, prices, and (where present) battery, solar and thermostats.
 
 | Device | Entities |
 |---|---|
-| **Vehicle** | battery %, range, charging/smart-charging status, session energy, session cost, target charge/departure · online + charging binary sensors · **manual state-of-charge number** (only where Tibber can't read the level itself) · **smart-charging switch** · **weekly departure schedule and clear-all button** · **charging plan** calendar, binary sensor and sensors (see below) |
+| **Vehicle** | battery %, range, charging/smart-charging status, session energy, session cost, target charge/departure · online + charging binary sensors · **manual state-of-charge number** (only where Tibber can't read the level itself) · **minimum charge level number** (Tibber's reserve, charged right away before smart charging) · **smart-charging switch** · **weekly departure schedule and clear-all button** · **charging plan** calendar, binary sensor and sensors (see below) |
 | **Charger** | charging status, last seen, active vehicle · online binary sensor · **preferred-vehicle select** · permanent-cable-lock & fuse-load-balancing switches · max-current / main-fuse / offline-fallback numbers |
 | **Pulse (live)** | power, production, phase currents/voltages, consumption/production/cost today, signal · online* / peak-exceeded binary sensors |
 | **Home** | electricity price (+ today/tomorrow arrays), consumption & cost this month · Grid Rewards this month (where available) · **hourly forecast `weather` entity** · away-mode / peak-control switches · peak-limit number · refresh button |

@@ -115,6 +115,33 @@ class TestVehicleNumber:
         uid = f"{setup_integration.entry_id}_ev-1_manual_soc"
         assert reg.async_get_entity_id("number", DOMAIN, uid) is None
 
+    async def test_no_minimum_charge_without_the_setting(self, hass, setup_integration):
+        reg = er.async_get(hass)
+        uid = f"{setup_integration.entry_id}_ev-1_minimum_charge_level"
+        assert reg.async_get_entity_id("number", DOMAIN, uid) is None
+
+    async def test_minimum_charge_reads_and_writes_its_setting(
+        self, hass, connected_vehicle_poll_data, setup_integration
+    ):
+        entity_id = _eid(hass, setup_integration, "number", "ev-1_minimum_charge_level")
+        assert hass.states.get(entity_id).state == "30"
+
+        coordinator = setup_integration.runtime_data.coordinator
+        coordinator.async_request_refresh = AsyncMock()
+        mutation_mock = AsyncMock(return_value={})
+        with patch.object(coordinator.client, "gql", new=mutation_mock):
+            await hass.services.async_call(
+                "number",
+                "set_value",
+                {"entity_id": entity_id, "value": 20},
+                blocking=True,
+            )
+
+        _, variables = mutation_mock.call_args.args
+        assert variables["settings"] == [
+            {"key": "online.vehicle.smartCharging.minChargeLimit", "value": 20}
+        ]
+
 
 class TestChargerNumbers:
     async def test_max_current_reads_user_settings(self, hass, setup_integration):

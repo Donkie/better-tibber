@@ -11,7 +11,12 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TibberConfigEntry
-from .const import GIZMO_ELECTRIC_VEHICLE, GIZMO_EV_CHARGER, VEHICLE_SOC_KEY
+from .const import (
+    GIZMO_ELECTRIC_VEHICLE,
+    GIZMO_EV_CHARGER,
+    VEHICLE_MIN_CHARGE_SUFFIX,
+    VEHICLE_SOC_KEY,
+)
 from .coordinator import TibberDataUpdateCoordinator, TibberDevice
 from .entity import TibberEntity, TibberHomeEntity
 
@@ -45,6 +50,10 @@ async def async_setup_entry(
         if battery.get("canReadLevel") is True:
             continue
         entities.append(TibberVehicleSocNumber(coordinator, dev))
+    for dev in coordinator.devices_of_type(GIZMO_ELECTRIC_VEHICLE):
+        key = coordinator.vehicle_setting_key(dev.id, VEHICLE_MIN_CHARGE_SUFFIX)
+        if key is not None:
+            entities.append(TibberVehicleMinChargeNumber(coordinator, dev, key))
     for dev in coordinator.devices_of_type(GIZMO_EV_CHARGER):
         entities += [
             TibberChargerNumber(coordinator, dev, key, tkey, lo, hi, step)
@@ -83,6 +92,44 @@ class TibberVehicleSocNumber(TibberEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         await self.coordinator.async_set_vehicle_setting(
             self._device.id, self._device.home_id, VEHICLE_SOC_KEY, int(value)
+        )
+
+
+class TibberVehicleMinChargeNumber(TibberEntity, NumberEntity):
+    """Tibber's reserve level, charged right away before smart charging.
+
+    The bounds are what the Tibber app offered for a Tesla: 0-75 % in steps
+    of 5, with 0 shown as "Off". The backend doesn't enforce them (it accepted
+    80 %), so they are the only guard. Other vehicles may offer other levels.
+    """
+
+    _attr_translation_key = "minimum_charge_level"
+    _attr_native_min_value = 0
+    _attr_native_max_value = 75
+    _attr_native_step = 5
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(
+        self,
+        coordinator: TibberDataUpdateCoordinator,
+        device: TibberDevice,
+        setting_key: str,
+    ) -> None:
+        super().__init__(coordinator, device, "minimum_charge_level")
+        self._setting_key = setting_key
+
+    @property
+    def native_value(self) -> float | None:
+        node = self.coordinator.data.vehicles.get(self._device.id) or {}
+        for setting in node.get("userSettings") or []:
+            if setting.get("key") == self._setting_key:
+                return setting.get("value")
+        return None
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self.coordinator.async_set_vehicle_setting(
+            self._device.id, self._device.home_id, self._setting_key, int(value)
         )
 
 

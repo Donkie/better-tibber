@@ -68,6 +68,9 @@ WEEKDAYS = (
     "sunday",
 )
 VEHICLE_DEPARTURE_SUFFIX = "departureTimes.{day}"
+# Tibber's reserve level: the vehicle charges to it right away, before smart
+# charging plans the rest.
+VEHICLE_MIN_CHARGE_SUFFIX = "smartCharging.minChargeLimit"
 
 # Battery operation modes (HomeBatteryOperationMode enum).
 BATTERY_MODES = ["BASIC", "SMART_EARNINGS", "SMART_SELF_CONSUMPTION"]
