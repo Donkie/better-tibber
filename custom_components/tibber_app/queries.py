@@ -195,7 +195,7 @@ mutation($homeId: String!, $deviceId: String!, $operationMode: HomeBatteryOperat
   me {
     home(id: $homeId) {
       battery(id: $deviceId) {
-        setCurrentOperationMode(operationMode: $operationMode) { currentOperationMode { value } }
+        setCurrentOperationMode(operationMode: $operationMode) { currentOperationMode }
       }
     }
   }
