@@ -12,7 +12,8 @@ Home Assistant.
 ## Features
 
 - **Vehicles** — battery %, range, charging status, session energy/cost, manual
-  state-of-charge, smart-charging toggle and a **weekly departure schedule** (a
+  state-of-charge, minimum charge level (Tibber's reserve), smart-charging
+  toggle and a **weekly departure schedule** (a
   `time` entity per weekday), including selective and clear-all removal of
   departure times, plus the **smart-charging plan** as a calendar, a
   "charging planned" binary sensor and planned energy/cost/start/end sensors.

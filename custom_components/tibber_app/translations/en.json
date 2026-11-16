@@ -91,6 +91,7 @@
     },
     "number": {
       "manual_soc": { "name": "Manual state of charge" },
+      "minimum_charge_level": { "name": "Minimum charge level" },
       "max_current": { "name": "Max charge current" },
       "main_fuse": { "name": "Main fuse size" },
       "offline_fallback_current": { "name": "Offline fallback current" },
