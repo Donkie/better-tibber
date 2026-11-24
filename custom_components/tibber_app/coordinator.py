@@ -140,6 +140,25 @@ def charging_windows(vehicle: dict[str, Any], now: datetime) -> list[dict[str, A
     return windows
 
 
+def monthly_peaks(hours: list[dict[str, Any]], count: int = 5) -> list[dict[str, Any]]:
+    """The ``count`` highest hourly consumptions, at most one per day.
+
+    Swedish power tariffs bill on the mean of the N highest hours on separate
+    days (N varies by grid operator), so each day contributes only its own peak.
+    """
+    best: dict[Any, tuple[datetime, float]] = {}
+    for item in hours:
+        kwh = item.get("netConsumption")
+        start = dt_util.parse_datetime(item.get("from") or "")
+        if kwh is None or start is None:
+            continue
+        day = start.date()
+        if day not in best or kwh > best[day][1]:
+            best[day] = (start, kwh)
+    top = sorted(best.values(), key=lambda p: p[1], reverse=True)[:count]
+    return [{"start": start.isoformat(), "consumption": kwh} for start, kwh in top]
+
+
 class TibberDataUpdateCoordinator(DataUpdateCoordinator[TibberData]):
     """Polls the app API and holds the merged device state."""
 
@@ -163,6 +182,10 @@ class TibberDataUpdateCoordinator(DataUpdateCoordinator[TibberData]):
         # Last fetched grid rewards per home (kept across polls; the period query
         # is fetched separately because it errors for homes without data).
         self._grid_rewards: dict[str, dict[str, Any]] = {}
+        # Last fetched consumption analysis per home (month total + hourly bars),
+        # and when it was fetched; see _fetch_consumption().
+        self._consumption: dict[str, dict[str, Any]] = {}
+        self._consumption_fetched = 0.0
         # Last fetched inverter production summary, keyed by inverter id.
         self._inverter_production: dict[str, dict[str, Any]] = {}
         # Preserve live WS data across polls.
@@ -290,6 +313,45 @@ class TibberDataUpdateCoordinator(DataUpdateCoordinator[TibberData]):
             if period:
                 self._grid_rewards[home_id] = period
 
+    async def _fetch_consumption(self) -> None:
+        """Fetch month-to-date consumption and hourly bars, at most every 15 min.
+
+        The analysis data only gains a new hourly bar once an hour, and a month of
+        bars is a sizeable payload, so this doesn't run every poll.
+        """
+        mono = time.monotonic()
+        if self._consumption and mono - self._consumption_fetched < 900:
+            return
+        now = dt_util.now()
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        next_month = (month_start + _timedelta(days=32)).replace(day=1)
+        for home_id in self.home_titles:
+            try:
+                res = await self.client.gql(
+                    queries.CONSUMPTION_ANALYSIS,
+                    {
+                        "homeId": home_id,
+                        "from": month_start.isoformat(),
+                        "to": next_month.isoformat(),
+                    },
+                    partial_ok=True,
+                )
+            except TibberApiError as err:
+                _LOGGER.debug("Consumption fetch failed for %s: %s", home_id, err)
+                continue
+            home = (res.get("me") or {}).get("home") or {}
+            month = (home.get("month") or [{}])[0] or {}
+            hours = [
+                item
+                for day in home.get("days") or []
+                for item in ((day or {}).get("chart") or {}).get("items") or []
+            ]
+            self._consumption[home_id] = {
+                "month": (month.get("netConsumption") or {}).get("consumption"),
+                "hours": hours,
+            }
+        self._consumption_fetched = mono
+
     # -- polling ------------------------------------------------------------
     async def _async_update_data(self) -> TibberData:
         query = self._build_query()
@@ -306,6 +368,7 @@ class TibberDataUpdateCoordinator(DataUpdateCoordinator[TibberData]):
         except TibberApiError as err:
             raise UpdateFailed(f"Update failed: {err}") from err
         await self._fetch_grid_rewards()
+        await self._fetch_consumption()
         await self._fetch_inverter_production()
         return self._parse(raw)
 
@@ -412,6 +475,7 @@ class TibberDataUpdateCoordinator(DataUpdateCoordinator[TibberData]):
                 "consumption": home_node.get("consumptionGizmoData"),
                 "peakControl": home_node.get("peakControlData"),
                 "gridRewards": self._grid_rewards.get(home_id),
+                "consumptionAnalysis": self._consumption.get(home_id),
                 "weather": home_node.get("weather"),
             }
             for gtype, prefix, bucket in (

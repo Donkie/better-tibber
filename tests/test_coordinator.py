@@ -410,14 +410,17 @@ class TestPollTolerance:
         gql = AsyncMock(return_value=poll_data)
         coord = self._coord(hass, gql)
         await coord._async_update_data()
-        assert gql.await_args.kwargs["partial_ok"] is False
+        # The poll itself is the first call; the side fetches after it are
+        # always tolerant.
+        assert gql.await_args_list[0].kwargs["partial_ok"] is False
 
     async def test_later_polls_accept_partial_responses(self, hass, poll_data):
         gql = AsyncMock(return_value=poll_data)
         coord = self._coord(hass, gql)
         coord.data = await coord._async_update_data()
+        gql.reset_mock()
         await coord._async_update_data()
-        assert gql.await_args.kwargs["partial_ok"] is True
+        assert gql.await_args_list[0].kwargs["partial_ok"] is True
 
 
 class TestLiveUpdate:

@@ -75,8 +75,12 @@ PULSE_BINARY: tuple[TibberBinaryDescription, ...] = (
         key="peak_exceeded",
         translation_key="peak_exceeded",
         device_class=BinarySensorDeviceClass.PROBLEM,
+        # PeakControlConsumptionState: NOMINAL, ESTIMATE_CLOSE_TO_LIMIT,
+        # ESTIMATE_EXCEEDS_LIMIT, LIMIT_EXCEEDED. The finer states are on the
+        # peak_control_state sensor.
         value_fn=lambda v: (
-            (v.get("peakControlConsumptionState") or "NORMAL") != "NORMAL"
+            v.get("peakControlConsumptionState")
+            in ("ESTIMATE_EXCEEDS_LIMIT", "LIMIT_EXCEEDED")
         ),
     ),
 )

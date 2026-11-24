@@ -66,9 +66,11 @@ class TestPulseBinarySensors:
         )
         assert state.state in ("unknown", "unavailable")
 
-    async def test_peak_exceeded_off_when_normal(self, hass, setup_integration):
+    async def test_peak_exceeded_off_when_only_close(self, hass, setup_integration):
         coordinator = setup_integration.runtime_data.coordinator
-        coordinator.update_live("pulse-1", {"peakControlConsumptionState": "NORMAL"})
+        coordinator.update_live(
+            "pulse-1", {"peakControlConsumptionState": "ESTIMATE_CLOSE_TO_LIMIT"}
+        )
         await hass.async_block_till_done()
 
         state = hass.states.get(
@@ -78,13 +80,26 @@ class TestPulseBinarySensors:
 
     async def test_peak_exceeded_on_when_exceeded(self, hass, setup_integration):
         coordinator = setup_integration.runtime_data.coordinator
-        coordinator.update_live("pulse-1", {"peakControlConsumptionState": "EXCEEDED"})
+        coordinator.update_live(
+            "pulse-1", {"peakControlConsumptionState": "LIMIT_EXCEEDED"}
+        )
         await hass.async_block_till_done()
 
         state = hass.states.get(
             _eid(hass, setup_integration, "binary_sensor", "pulse-1_peak_exceeded")
         )
         assert state.state == "on"
+
+    async def test_peak_exceeded_off_when_nominal(self, hass, setup_integration):
+        """The API's normal state is NOMINAL; it used to read as exceeded."""
+        coordinator = setup_integration.runtime_data.coordinator
+        coordinator.update_live("pulse-1", {"peakControlConsumptionState": "NOMINAL"})
+        await hass.async_block_till_done()
+
+        state = hass.states.get(
+            _eid(hass, setup_integration, "binary_sensor", "pulse-1_peak_exceeded")
+        )
+        assert state.state == "off"
 
 
 # ---------------------------------------------------------------------------

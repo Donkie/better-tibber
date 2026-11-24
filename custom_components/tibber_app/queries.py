@@ -34,6 +34,7 @@ VEHICLE_FIELDS = """
     days { periods { startAt stopAt fromStateOfCharge toStateOfCharge energy cost gridReward } }
   }
   userSettings { key value }
+  actionButtons { enabled action }
 """
 
 CHARGER_FIELDS = """
@@ -117,6 +118,26 @@ query($homeId: String!, $from: String!, $to: String!, $resolution: Resolution!) 
 }
 """
 
+# --- consumption analysis (separate, throttled) -----------------------------
+# consumptionGizmoData.consumption is null for some homes (issue #15), so the
+# month-to-date kWh comes from the analysis screen instead. Hourly resolution is
+# refused ("not supported"), but each daily item's chart carries its 24 hourly
+# bars, which is what the monthly peak sensor needs.
+CONSUMPTION_ANALYSIS = """
+query($homeId: String!, $from: String!, $to: String!) {
+  me {
+    home(id: $homeId) {
+      month: consumptionAnalysisItems(from: $from, to: $to, resolution: monthly, useDemoData: false) {
+        netConsumption { consumption }
+      }
+      days: consumptionAnalysisItems(from: $from, to: $to, resolution: daily, useDemoData: false) {
+        chart { items { from netConsumption } }
+      }
+    }
+  }
+}
+"""
+
 # --- inverter production (separate; needs from/to/resolution) ---------------
 INVERTER_PRODUCTION = """
 query($homeId: String!, $inverterId: String!, $from: String!, $to: String!, $resolution: String!) {
@@ -137,6 +158,7 @@ subscription($deviceId: String!) {
   liveMeasurement(deviceId: $deviceId) {
     timestamp power powerProduction minPower maxPower averagePower
     accumulatedConsumption accumulatedCost accumulatedProduction accumulatedReward
+    accumulatedConsumptionCurrentHour estimatedAccumulatedConsumptionCurrentHour
     peakControlConsumptionState effectiveHourlyConsumptionLimit currency
     currentPhase1 currentPhase2 currentPhase3
     voltagePhase1 voltagePhase2 voltagePhase3

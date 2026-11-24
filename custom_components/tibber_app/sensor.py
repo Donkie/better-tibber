@@ -36,7 +36,12 @@ from .const import (
     GIZMO_INVERTER,
     GIZMO_REAL_TIME_METER,
 )
-from .coordinator import TibberDataUpdateCoordinator, TibberDevice, charging_windows
+from .coordinator import (
+    TibberDataUpdateCoordinator,
+    TibberDevice,
+    charging_windows,
+    monthly_peaks,
+)
 from .entity import TibberEntity, TibberHomeEntity
 
 
@@ -257,6 +262,20 @@ CHARGER_SENSORS: tuple[TibberSensorDescription, ...] = (
     ),
 )
 
+# PeakControlConsumptionState enum values, as lowercase state keys.
+PEAK_CONTROL_STATES = [
+    "nominal",
+    "estimate_close_to_limit",
+    "estimate_exceeds_limit",
+    "limit_exceeded",
+]
+
+
+def _peak_control_state(v: dict[str, Any]) -> str | None:
+    state = (v.get("peakControlConsumptionState") or "").lower()
+    return state if state in PEAK_CONTROL_STATES else None
+
+
 # Pulse live sensors read from coordinator.data.live[pulse_id].
 PULSE_SENSORS: tuple[TibberSensorDescription, ...] = (
     TibberSensorDescription(
@@ -266,6 +285,51 @@ PULSE_SENSORS: tuple[TibberSensorDescription, ...] = (
         native_unit_of_measurement=UnitOfPower.WATT,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda v: v.get("power"),
+    ),
+    *(
+        TibberSensorDescription(
+            key=key,
+            translation_key=key,
+            device_class=SensorDeviceClass.POWER,
+            native_unit_of_measurement=UnitOfPower.WATT,
+            state_class=SensorStateClass.MEASUREMENT,
+            value_fn=lambda v, field=field: v.get(field),
+        )
+        for key, field in (
+            ("min_power", "minPower"),
+            ("max_power", "maxPower"),
+            ("average_power", "averagePower"),
+        )
+    ),
+    TibberSensorDescription(
+        key="consumption_this_hour",
+        translation_key="consumption_this_hour",
+        device_class=SensorDeviceClass.ENERGY,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        # Resets every hour; total_increasing treats the drop as a new cycle.
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        value_fn=lambda v: v.get("accumulatedConsumptionCurrentHour"),
+    ),
+    TibberSensorDescription(
+        key="estimated_consumption_this_hour",
+        translation_key="estimated_consumption_this_hour",
+        device_class=SensorDeviceClass.ENERGY,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        value_fn=lambda v: v.get("estimatedAccumulatedConsumptionCurrentHour"),
+    ),
+    TibberSensorDescription(
+        key="peak_control_state",
+        translation_key="peak_control_state",
+        device_class=SensorDeviceClass.ENUM,
+        options=PEAK_CONTROL_STATES,
+        value_fn=_peak_control_state,
+    ),
+    TibberSensorDescription(
+        key="effective_hourly_limit",
+        translation_key="effective_hourly_limit",
+        device_class=SensorDeviceClass.ENERGY,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        value_fn=lambda v: v.get("effectiveHourlyConsumptionLimit"),
     ),
     TibberSensorDescription(
         key="power_production",
@@ -485,6 +549,7 @@ async def async_setup_entry(
             TibberPriceSensor(coordinator, home_id),
             TibberConsumptionTodaySensor(coordinator, home_id),
             TibberCostTodaySensor(coordinator, home_id),
+            TibberMonthlyPeakSensor(coordinator, home_id),
         ]
         # Only add Grid Rewards where the home actually reports it.
         if (coordinator.data.homes.get(home_id) or {}).get("gridRewards"):
@@ -689,7 +754,36 @@ class TibberConsumptionTodaySensor(TibberHomeEntity, SensorEntity):
 
     @property
     def native_value(self) -> Any:
+        # The gizmo's consumption is null for some homes (issue #15); the
+        # analysis month total is the same figure the app's analysis shows.
+        analysis = (self._home.get("consumptionAnalysis") or {}).get("month")
+        if analysis is not None:
+            return round(analysis, 3)
         return (self._home.get("consumption") or {}).get("consumption")
+
+
+class TibberMonthlyPeakSensor(TibberHomeEntity, SensorEntity):
+    """Highest hourly consumption this month, top days as attributes."""
+
+    _attr_translation_key = "monthly_peak"
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+
+    def __init__(self, coordinator: TibberDataUpdateCoordinator, home_id: str) -> None:
+        super().__init__(coordinator, home_id, "monthly_peak")
+
+    def _peaks(self) -> list[dict[str, Any]]:
+        hours = (self._home.get("consumptionAnalysis") or {}).get("hours") or []
+        return monthly_peaks(hours)
+
+    @property
+    def native_value(self) -> Any:
+        peaks = self._peaks()
+        return round(peaks[0]["consumption"], 3) if peaks else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"peaks": self._peaks()}
 
 
 class TibberCostTodaySensor(TibberHomeEntity, SensorEntity):

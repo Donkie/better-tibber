@@ -71,7 +71,23 @@
       "planned_charge_power": { "name": "Planned charge power" },
       "planned_average_price": { "name": "Planned average price" },
       "planned_grid_rewards": { "name": "Planned Grid Rewards" },
-      "planned_charging_time": { "name": "Planned charging time" }
+      "planned_charging_time": { "name": "Planned charging time" },
+      "min_power": { "name": "Min power" },
+      "max_power": { "name": "Max power" },
+      "average_power": { "name": "Average power" },
+      "consumption_this_hour": { "name": "Consumption this hour" },
+      "estimated_consumption_this_hour": { "name": "Estimated consumption this hour" },
+      "peak_control_state": {
+        "name": "Peak control state",
+        "state": {
+          "nominal": "Normal",
+          "estimate_close_to_limit": "Estimate close to limit",
+          "estimate_exceeds_limit": "Estimate exceeds limit",
+          "limit_exceeded": "Limit exceeded"
+        }
+      },
+      "effective_hourly_limit": { "name": "Effective hourly limit" },
+      "monthly_peak": { "name": "Monthly peak hour" }
     },
     "time": {
       "departure_monday": { "name": "Departure Monday" },
@@ -109,7 +125,9 @@
     },
     "button": {
       "refresh": { "name": "Refresh" },
-      "clear_all_departure_times": { "name": "Clear all departure times" }
+      "clear_all_departure_times": { "name": "Clear all departure times" },
+      "charge_now": { "name": "Charge now" },
+      "resume_smart_charging": { "name": "Resume smart charging" }
     },
     "calendar": {
       "charging_plan": { "name": "Charging plan" }

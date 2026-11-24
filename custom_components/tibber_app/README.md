@@ -32,10 +32,10 @@ real-time meter, prices, and (where present) battery, solar and thermostats.
 
 | Device | Entities |
 |---|---|
-| **Vehicle** | battery %, range, charging/smart-charging status, session energy, session cost, target charge/departure · online + charging binary sensors · **manual state-of-charge number** (only where Tibber can't read the level itself) · **smart-charging switch** · **weekly departure schedule and clear-all button** · **charging plan** calendar, binary sensor and sensors (see below) |
+| **Vehicle** | battery %, range, charging/smart-charging status, session energy, session cost, target charge/departure · online + charging binary sensors · **manual state-of-charge number** (only where Tibber can't read the level itself) · **smart-charging switch** · **charge now** / **resume smart charging** buttons (available only while Tibber offers them; charge now skips the plan for this session without turning smart charging off) · **weekly departure schedule and clear-all button** · **charging plan** calendar, binary sensor and sensors (see below) |
 | **Charger** | charging status, last seen, active vehicle · online binary sensor · **preferred-vehicle select** · permanent-cable-lock & fuse-load-balancing switches · max-current / main-fuse / offline-fallback numbers |
-| **Pulse (live)** | power, production, phase currents/voltages, consumption/production/cost today, signal · online* / peak-exceeded binary sensors |
-| **Home** | electricity price (+ today/tomorrow arrays), consumption & cost this month · Grid Rewards this month (where available) · **hourly forecast `weather` entity** · away-mode / peak-control switches · peak-limit number · refresh button |
+| **Pulse (live)** | power, min/max/average power, production, phase currents/voltages, consumption/production/cost today, consumption this hour (+ estimate), peak-control state and effective hourly limit, signal · online* / peak-exceeded binary sensors |
+| **Home** | electricity price (+ today/tomorrow arrays), consumption & cost this month · monthly peak hour (top 5 hours on separate days as `peaks`) · Grid Rewards this month (where available) · **hourly forecast `weather` entity** · away-mode / peak-control switches · peak-limit number · refresh button |
 | **Battery** | state of charge, status, power from solar/grid, power to home/grid (live via WebSocket) · operation-mode sensor + **select** · Grid Rewards enabled |
 | **Inverter** | current production · production today |
 | **Thermostat** | full `climate` entity (mode, target/current temp, on/off) |
